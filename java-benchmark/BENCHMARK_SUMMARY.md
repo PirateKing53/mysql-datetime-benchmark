@@ -422,12 +422,5 @@ results/
 
 ## References
 
-- [METRICS_DOCUMENTATION.md](METRICS_DOCUMENTATION.md) - Detailed metrics explanation
-- [METRICS_QUICK_REFERENCE.md](METRICS_QUICK_REFERENCE.md) - Quick reference guide
-- [HOW_TO_RUN.md](HOW_TO_RUN.md) - Execution instructions
-- [POSTGRESQL_CITUS_SETUP.md](POSTGRESQL_CITUS_SETUP.md) - PostgreSQL+Citus configuration
-
----
-
-*Generated from benchmark results on 2025-11-03*
+- Refer to [github repo](https://github.com/PirateKing53/mysql-datetime-benchmark) - Detailed explanation along with the entire benchmark test suite.
 
