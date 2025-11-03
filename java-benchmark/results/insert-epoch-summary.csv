@@ -1,0 +1,2 @@
+workload,operation,p50,p90,p99,throughput,db_time,processing_time
+insert,all,25.00,29.00,52.00,37632.93,24.68,0.55

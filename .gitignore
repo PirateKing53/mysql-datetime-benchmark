@@ -1,0 +1,15 @@
+# Maven build artifacts
+target/
+*.log
+*.class
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+
+# Benchmark reports
+reports/

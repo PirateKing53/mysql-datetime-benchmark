@@ -1,0 +1,8 @@
+model,workload,operation,p50,p90,p99,throughput,db_time,processing_time
+insert,all,0.00,0.00,0.00,0.00,23.93,0.56
+update,cf3,0.00,0.00,0.00,0.00,728.00,0.00
+select,retrieval,1.00,3.00,16.00,8333.33,2.30,0.04
+select,processing,0.00,0.00,1.00,25000.00,2.30,0.04
+extract,groupby,95.00,95.00,95.00,10.53,95.00,0.50
+txn_mixed,all,15.00,17.00,21.00,10989.01,15.21,0.02
+delete,all,743.00,796.00,823.00,121.07,751.27,0.00
