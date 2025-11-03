@@ -6,6 +6,33 @@ import java.time.ZonedDateTime;
 import java.util.Random;
 import org.HdrHistogram.Histogram;
 
+/**
+ * Benchmark workload for range query retrieval and datetime conversion processing.
+ * 
+ * <p>This workload consists of two distinct phases, each measured separately:
+ * 
+ * <p><b>Retrieval Phase (DB I/O):</b>
+ * <ul>
+ *   <li>Executes range queries to fetch rows from the database</li>
+ *   <li>Measures database execution time (query time)</li>
+ *   <li>Throughput is calculated from retrieval time only (represents I/O performance)</li>
+ *   <li>Minimal processing time (just query preparation)</li>
+ * </ul>
+ * 
+ * <p><b>Processing Phase (CPU-bound):</b>
+ * <ul>
+ *   <li>Converts retrieved datetime values (epoch unpack or bitpack decode)</li>
+ *   <li>Measures Java-side conversion cost per row</li>
+ *   <li>No database involvement (db_time = 0.0)</li>
+ *   <li>No throughput calculation (CPU-only operation, throughput is meaningless)</li>
+ * </ul>
+ * 
+ * <p>The workload uses {@code READ_COMMITTED} isolation level and includes
+ * error handling for invalid datetime values (skips corrupted records).
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class SelectWorkload implements Workload {
     private final DataSource ds;
     private final int iterations;
@@ -23,6 +50,19 @@ public class SelectWorkload implements Workload {
     private long totalRetrievalTimeNs;
     private long totalProcessingTimeNs;
 
+    /**
+     * Creates a new select workload.
+     * 
+     * @param ds The DataSource for database connections
+     * @param iterations Number of query iterations to perform
+     * @param batchSize Number of rows to fetch per query (LIMIT value)
+     * @param useBitpack If true, use bitpack storage; if false, use epoch storage
+     * @param tenantPrefix Tenant identifier prefix for tenant_module_range filtering
+     * @param hr Histogram for retrieval latency metrics (DB query time)
+     * @param hp Histogram for processing latency metrics (conversion time per row)
+     * @param dbTimeHist Histogram for database execution time (query execution)
+     * @param procTimeHist Histogram for retrieval preparation time (query prep, ~0ms)
+     */
     public SelectWorkload(DataSource ds, int iterations, int batchSize, boolean useBitpack, int tenantPrefix, 
                          Histogram hr, Histogram hp, Histogram dbTimeHist, Histogram procTimeHist) {
         this.ds = ds; 
@@ -135,6 +175,11 @@ public class SelectWorkload implements Workload {
         }
     }
     
+    /**
+     * Gets the total elapsed time for the workload execution.
+     * 
+     * @return Elapsed time in seconds, or 0.0 if workload hasn't completed
+     */
     public double getElapsedTimeSeconds() {
         if (workloadEndTime > workloadStartTime) {
             return (workloadEndTime - workloadStartTime) / 1_000_000_000.0;
@@ -142,14 +187,29 @@ public class SelectWorkload implements Workload {
         return 0.0;
     }
     
+    /**
+     * Gets the total database retrieval time (query execution time only).
+     * 
+     * @return Total retrieval time in seconds
+     */
     public double getRetrievalTimeSeconds() {
         return totalRetrievalTimeNs / 1_000_000_000.0;
     }
     
+    /**
+     * Gets the total processing time (datetime conversion time only).
+     * 
+     * @return Total processing time in seconds
+     */
     public double getProcessingTimeSeconds() {
         return totalProcessingTimeNs / 1_000_000_000.0;
     }
     
+    /**
+     * Gets the total number of rows processed (converted).
+     * 
+     * @return Total rows processed
+     */
     public long getTotalRowsProcessed() {
         return totalRowsProcessed;
     }

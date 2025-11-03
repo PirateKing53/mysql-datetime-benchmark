@@ -3,9 +3,53 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.Statement;
 
+/**
+ * Database schema setup and management utilities.
+ * 
+ * <p>This class handles creation and clearing of benchmark tables, with support
+ * for both MySQL and PostgreSQL/Citus. For Citus-enabled databases, it attempts
+ * to distribute tables and optionally convert them to columnar storage.
+ * 
+ * <p><b>Tables Created:</b>
+ * <ul>
+ *   <li>{@code bench_common_epoch}: Table for epoch-based datetime storage</li>
+ *   <li>{@code bench_common_bitpack}: Table for bitpacked datetime storage</li>
+ * </ul>
+ * 
+ * <p><b>Citus Support:</b>
+ * <ul>
+ *   <li>Checks for Citus extension availability</li>
+ *   <li>Distributes tables by {@code tenant_module_range} column</li>
+ *   <li>Optionally converts tables to columnar storage (if enabled)</li>
+ *   <li>Gracefully handles failures (tables still function without distribution)</li>
+ * </ul>
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class DBSetup {
     private static final DatabaseAdapter adapter = Config.DB_ADAPTER;
     
+    /**
+     * Creates the benchmark tables with appropriate schema for the database type.
+     * 
+     * <p>Creates two tables: one for epoch storage and one for bitpack storage.
+     * Automatically handles database-specific differences:
+     * <ul>
+     *   <li>Primary keys: AUTO_INCREMENT (MySQL) vs BIGSERIAL (PostgreSQL)</li>
+     *   <li>Table engines: ENGINE=InnoDB (MySQL) vs none (PostgreSQL)</li>
+     *   <li>Data types: TINYINT/BLOB (MySQL) vs SMALLINT/BYTEA (PostgreSQL)</li>
+     * </ul>
+     * 
+     * <p>For Citus-enabled databases, attempts to:
+     * <ul>
+     *   <li>Enable the Citus extension</li>
+     *   <li>Distribute tables by tenant_module_range</li>
+     *   <li>Convert to columnar storage (if configured)</li>
+     * </ul>
+     * 
+     * @param ds The DataSource to use for creating tables
+     */
     public static void createTables(DataSource ds) {
         try (Connection c = ds.getConnection(); Statement s = c.createStatement()) {
             // Common column definitions
@@ -119,6 +163,14 @@ public class DBSetup {
         }
     }
     
+    /**
+     * Clears all data from the benchmark tables.
+     * 
+     * <p>Uses TRUNCATE for standard tables (fast), but falls back to DELETE
+     * for distributed Citus tables if TRUNCATE is not supported.
+     * 
+     * @param ds The DataSource to use for clearing tables
+     */
     public static void clearTables(DataSource ds) {
         try (Connection c = ds.getConnection(); Statement s = c.createStatement()) {
             // PostgreSQL uses TRUNCATE, but for Citus distributed tables, may need DELETE

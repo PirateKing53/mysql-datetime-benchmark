@@ -6,6 +6,25 @@ import java.time.Instant;
 import java.util.Random;
 import org.HdrHistogram.Histogram;
 
+/**
+ * Benchmark workload for batch insert operations.
+ * 
+ * <p>This workload performs batch inserts of rows with randomized datetime values
+ * (between 2015 and 2025) using either epoch or bitpack storage models. It measures
+ * three separate latency metrics:
+ * <ul>
+ *   <li><b>db_time</b>: Database execution time (batch insert execution)</li>
+ *   <li><b>processing_time</b>: Java-side processing time (data generation, conversion, batch preparation)</li>
+ *   <li><b>total_time</b>: End-to-end time per row (db_time + processing_time)</li>
+ * </ul>
+ * 
+ * <p>The workload uses {@code READ_COMMITTED} isolation level and processes data
+ * in batches with explicit transaction management. Deadlock retry logic is applied
+ * for robustness.
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class InsertWorkload implements Workload {
     private final DataSource ds;
     private final int rows;
@@ -24,6 +43,18 @@ public class InsertWorkload implements Workload {
     private long workloadEndTime;
     private int totalInserted;
 
+    /**
+     * Creates a new insert workload.
+     * 
+     * @param ds The DataSource for database connections
+     * @param rows Total number of rows to insert
+     * @param batchSize Number of rows per batch
+     * @param useBitpack If true, use bitpack storage; if false, use epoch storage
+     * @param tenantPrefix Tenant identifier prefix for tenant_module_range column
+     * @param hist Histogram for total time metrics (per row)
+     * @param dbTimeHist Histogram for database execution time metrics
+     * @param procTimeHist Histogram for processing time metrics
+     */
     public InsertWorkload(DataSource ds, int rows, int batchSize, boolean useBitpack, int tenantPrefix, Histogram hist, Histogram dbTimeHist, Histogram procTimeHist) {
         this.ds = ds; 
         this.rows = rows; 
@@ -109,6 +140,11 @@ public class InsertWorkload implements Workload {
         }
     }
     
+    /**
+     * Gets the total elapsed time for the workload execution.
+     * 
+     * @return Elapsed time in seconds, or 0.0 if workload hasn't completed
+     */
     public double getElapsedTimeSeconds() {
         if (workloadEndTime > workloadStartTime) {
             return (workloadEndTime - workloadStartTime) / 1_000_000_000.0;
@@ -116,6 +152,11 @@ public class InsertWorkload implements Workload {
         return 0.0;
     }
     
+    /**
+     * Gets the total number of rows inserted.
+     * 
+     * @return Total rows inserted
+     */
     public long getTotalInserted() {
         return totalInserted;
     }

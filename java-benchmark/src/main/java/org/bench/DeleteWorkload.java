@@ -3,6 +3,29 @@ import javax.sql.DataSource;
 import java.sql.*;
 import org.HdrHistogram.Histogram;
 
+/**
+ * Benchmark workload for chunked delete operations.
+ * 
+ * <p>This workload performs batch deletes within tenant ranges, using LIMIT clauses
+ * to delete in chunks. The DELETE SQL is adapted based on the database type:
+ * <ul>
+ *   <li>MySQL: Direct LIMIT in DELETE statement</li>
+ *   <li>PostgreSQL: Subquery with LIMIT (PostgreSQL doesn't support LIMIT in DELETE directly)</li>
+ * </ul>
+ * 
+ * <p>The workload measures three separate latency metrics:
+ * <ul>
+ *   <li><b>db_time</b>: Database execution time (DELETE statement execution)</li>
+ *   <li><b>processing_time</b>: Java-side processing time (statement preparation, parameter binding)</li>
+ *   <li><b>total_time</b>: End-to-end time per delete operation</li>
+ * </ul>
+ * 
+ * <p>Uses {@code READ_COMMITTED} isolation level and includes deadlock retry logic.
+ * Continues deleting until a target number of rows is deleted or no more rows match.
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class DeleteWorkload implements Workload {
     private final DataSource ds;
     private final int batchSize;
@@ -11,6 +34,16 @@ public class DeleteWorkload implements Workload {
     private final Histogram dbTimeHist;
     private final Histogram procTimeHist;
 
+    /**
+     * Creates a new delete workload.
+     * 
+     * @param ds The DataSource for database connections
+     * @param batchSize Number of rows to delete per batch (LIMIT value)
+     * @param useBitpack If true, use bitpack storage; if false, use epoch storage
+     * @param hist Histogram for total time metrics
+     * @param dbTimeHist Histogram for database execution time metrics
+     * @param procTimeHist Histogram for processing time metrics
+     */
     public DeleteWorkload(DataSource ds, int batchSize, boolean useBitpack, Histogram hist, Histogram dbTimeHist, Histogram procTimeHist) {
         this.ds = ds; 
         this.batchSize = batchSize; 

@@ -4,6 +4,24 @@ import io.prometheus.client.Counter;
 import io.prometheus.client.exporter.HTTPServer;
 import java.io.IOException;
 
+/**
+ * Prometheus metrics collection and HTTP server for metric exposition.
+ * 
+ * <p>This class manages Prometheus metrics and provides an HTTP endpoint for
+ * metric scraping. Metrics include:
+ * <ul>
+ *   <li>{@code bench_db_retrieval_seconds}: Database retrieval latency histogram</li>
+ *   <li>{@code bench_processing_seconds}: Processing latency histogram</li>
+ *   <li>{@code bench_ops_total}: Total operations counter</li>
+ * </ul>
+ * 
+ * <p>The HTTP server starts on a specified port, and automatically finds an
+ * available port if the requested port is already in use (tries up to 100
+ * additional ports).
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class BenchMetrics {
     public static final Histogram dbRetrieval = Histogram.build()
             .name("bench_db_retrieval_seconds").help("DB retrieval latency seconds").register();
@@ -12,6 +30,16 @@ public class BenchMetrics {
     public static final Counter ops = Counter.build().name("bench_ops_total").help("Total operations").register();
     private static HTTPServer server;
     
+    /**
+     * Starts the Prometheus metrics HTTP server on the specified port.
+     * 
+     * <p>If the requested port is already in use, automatically tries ports
+     * up to 100 higher to find an available port. This handles cases where
+     * multiple benchmark instances are running simultaneously.
+     * 
+     * @param port The preferred port number for the HTTP server
+     * @throws IOException If no available port is found within the range
+     */
     public static void startHttpServer(int port) throws IOException {
         if (server != null) {
             System.out.println("Metrics server already running on port " + server.getPort());

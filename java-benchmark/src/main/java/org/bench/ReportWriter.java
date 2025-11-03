@@ -4,6 +4,40 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
+/**
+ * Utility class for writing benchmark results to CSV files.
+ * 
+ * <p>This class handles:
+ * <ul>
+ *   <li>Individual workload summary CSV files (per workload, per model)</li>
+ *   <li>Combined summary CSV file (all workloads for a model)</li>
+ *   <li>Console output of benchmark results</li>
+ * </ul>
+ * 
+ * <p><b>CSV Format:</b>
+ * <pre>
+ * model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
+ * </pre>
+ * 
+ * <p><b>Metrics:</b>
+ * <ul>
+ *   <li><b>p50, p90, p99</b>: Latency percentiles in milliseconds</li>
+ *   <li><b>throughput</b>: Rows per second (calculated from db_time only, not total_time)</li>
+ *   <li><b>db_time</b>: Mean database execution time in milliseconds</li>
+ *   <li><b>processing_time</b>: Mean Java-side processing time in milliseconds</li>
+ *   <li><b>total_time</b>: Mean end-to-end operation time in milliseconds</li>
+ * </ul>
+ * 
+ * <p><b>Throughput Calculation:</b>
+ * <ul>
+ *   <li>Throughput = total_operations / total_db_time_seconds</li>
+ *   <li>total_db_time_seconds = (db_time_mean * total_count) / 1000.0</li>
+ *   <li>For CPU-only operations (e.g., select processing), throughput is set to 0.0</li>
+ * </ul>
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class ReportWriter {
     private static final String SUMMARY_CSV = "summary.csv";
     private static List<String> summaryRows = new ArrayList<>();
@@ -12,15 +46,44 @@ public class ReportWriter {
         summaryRows.add("model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time");
     }
     
+    /**
+     * Writes a summary with default parameters (legacy method).
+     * 
+     * @param workload The workload name
+     * @param h The histogram containing latency metrics
+     * @param model The storage model ("epoch" or "bitpack")
+     */
     public static void writeSummary(String workload, Histogram h, String model) {
         writeSummary(workload, "all", h, model, 0.0, 0.0, 0.0, 0.0, 0, true);
     }
     
+    /**
+     * Writes a summary with db_time and processing_time (legacy method).
+     * 
+     * @param workload The workload name
+     * @param operation The operation name (e.g., "all", "cf3", "retrieval", "processing")
+     * @param h The histogram containing latency metrics
+     * @param model The storage model ("epoch" or "bitpack")
+     * @param dbTimeMs Mean database execution time in milliseconds
+     * @param processingTimeMs Mean processing time in milliseconds
+     */
     public static void writeSummary(String workload, String operation, Histogram h, String model, 
                                    double dbTimeMs, double processingTimeMs) {
         writeSummary(workload, operation, h, model, dbTimeMs, processingTimeMs, 0.0, 0.0, 0, true);
     }
     
+    /**
+     * Writes a summary with elapsed time and operation count (legacy method).
+     * 
+     * @param workload The workload name
+     * @param operation The operation name
+     * @param h The histogram containing latency metrics
+     * @param model The storage model ("epoch" or "bitpack")
+     * @param dbTimeMs Mean database execution time in milliseconds
+     * @param processingTimeMs Mean processing time in milliseconds
+     * @param elapsedTimeSeconds Total elapsed time in seconds
+     * @param operationCount Total number of operations performed
+     */
     public static void writeSummary(String workload, String operation, Histogram h, String model, 
                                    double dbTimeMs, double processingTimeMs, 
                                    double elapsedTimeSeconds, long operationCount) {
@@ -105,6 +168,14 @@ public class ReportWriter {
         }
     }
     
+    /**
+     * Writes the final combined summary CSV file for the current model.
+     * 
+     * <p>Appends all summary rows for the specified model to the summary.csv file.
+     * Uses exact string matching to filter rows by model name to avoid partial matches.
+     * 
+     * @param model The storage model ("epoch" or "bitpack")
+     */
     public static void writeFinalSummary(String model) {
         try {
             Files.createDirectories(Paths.get(Config.RESULTS_DIR));
@@ -139,6 +210,11 @@ public class ReportWriter {
         }
     }
     
+    /**
+     * Resets the internal summary rows list.
+     * 
+     * <p>Should be called at the start of each benchmark run to clear previous results.
+     */
     public static void resetSummary() {
         summaryRows.clear();
         summaryRows.add("model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time");

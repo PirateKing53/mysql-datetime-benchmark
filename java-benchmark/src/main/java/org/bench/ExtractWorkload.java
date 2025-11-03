@@ -3,6 +3,30 @@ import javax.sql.DataSource;
 import java.sql.*;
 import org.HdrHistogram.Histogram;
 
+/**
+ * Benchmark workload for GROUP BY operations with year extraction.
+ * 
+ * <p>This workload performs a GROUP BY query that extracts the year from the
+ * datetime column and counts rows per year. It tests the performance difference
+ * between epoch-based extraction (database date functions) and bitpack extraction
+ * (bitwise operations).
+ * 
+ * <p>The workload measures three separate latency metrics:
+ * <ul>
+ *   <li><b>db_time</b>: Database execution time (query execution)</li>
+ *   <li><b>processing_time</b>: Java-side processing time (query prep + result processing)</li>
+ *   <li><b>total_time</b>: End-to-end time (prep + DB + result processing)</li>
+ * </ul>
+ * 
+ * <p>Database-specific handling:
+ * <ul>
+ *   <li>MySQL: Allows aliases in GROUP BY clause</li>
+ *   <li>PostgreSQL: Requires full expression in GROUP BY clause</li>
+ * </ul>
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class ExtractWorkload implements Workload {
     private final DataSource ds;
     private final boolean useBitpack;
@@ -10,6 +34,15 @@ public class ExtractWorkload implements Workload {
     private final Histogram dbTimeHist;
     private final Histogram procTimeHist;
 
+    /**
+     * Creates a new extract workload.
+     * 
+     * @param ds The DataSource for database connections
+     * @param useBitpack If true, use bitpack storage (bitwise extraction); if false, use epoch storage (date function extraction)
+     * @param hist Histogram for total time metrics
+     * @param dbTimeHist Histogram for database execution time metrics
+     * @param procTimeHist Histogram for processing time metrics (query prep + result processing)
+     */
     public ExtractWorkload(DataSource ds, boolean useBitpack, Histogram hist, Histogram dbTimeHist, Histogram procTimeHist) {
         this.ds = ds; 
         this.useBitpack = useBitpack; 

@@ -6,6 +6,30 @@ import java.time.Instant;
 import java.util.Random;
 import org.HdrHistogram.Histogram;
 
+/**
+ * Benchmark workload for mixed transactional operations.
+ * 
+ * <p>This workload performs transactions containing both INSERT and UPDATE operations,
+ * simulating real-world transactional workloads. Each transaction includes:
+ * <ul>
+ *   <li>Multiple INSERT operations (batch inserts)</li>
+ *   <li>UPDATE operations (every other insert is followed by an update)</li>
+ *   <li>All operations within a single transaction boundary</li>
+ * </ul>
+ * 
+ * <p>The workload measures three separate latency metrics:
+ * <ul>
+ *   <li><b>db_time</b>: Database execution time (batch execution + commit)</li>
+ *   <li><b>processing_time</b>: Java-side processing time (data generation, conversion, batch preparation)</li>
+ *   <li><b>total_time</b>: End-to-end transaction time (per transaction)</li>
+ * </ul>
+ * 
+ * <p>Uses {@code READ_COMMITTED} isolation level and includes deadlock retry logic.
+ * Executes a fixed number of transactions (1000 iterations).
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class TxnMixedWorkload implements Workload {
     private final DataSource ds;
     private final int opsPerTxn;
@@ -18,6 +42,16 @@ public class TxnMixedWorkload implements Workload {
     private static final long YEAR_2025_EPOCH = ZonedDateTime.of(2025, 12, 31, 23, 59, 59, 999_000_000, java.time.ZoneId.of("UTC")).toInstant().toEpochMilli();
     private static final long DATE_RANGE_MS = YEAR_2025_EPOCH - YEAR_2015_EPOCH;
 
+    /**
+     * Creates a new transactional mixed workload.
+     * 
+     * @param ds The DataSource for database connections
+     * @param opsPerTxn Number of operations (inserts) per transaction
+     * @param useBitpack If true, use bitpack storage; if false, use epoch storage
+     * @param hist Histogram for total time metrics (per transaction)
+     * @param dbTimeHist Histogram for database execution time metrics
+     * @param procTimeHist Histogram for processing time metrics
+     */
     public TxnMixedWorkload(DataSource ds, int opsPerTxn, boolean useBitpack, Histogram hist, Histogram dbTimeHist, Histogram procTimeHist) {
         this.ds = ds; 
         this.opsPerTxn = opsPerTxn; 

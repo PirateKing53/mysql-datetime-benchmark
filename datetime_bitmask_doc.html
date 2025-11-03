@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DateTime Bitmask Storage Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text: #2c3e50;
+            --text-light: #7f8c8d;
+            --border: #e1e8ed;
+            --shadow: rgba(0, 0, 0, 0.08);
+            --code-bg: #f4f6f8;
+            --highlight: #fffbea;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.7;
+            color: var(--text);
+            background: var(--bg);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            box-shadow: 0 4px 20px var(--shadow);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+
+        .content-wrapper {
+            grid-template-columns: 280px 1fr;
+            gap: 0;
+        }
+
+        nav {
+    background: #f8f9fa;
+    border-right: 2px solid var(--border);
+    padding: 40px 20px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+
+    display: flex;
+    justify-content: center;     /* Centers the TOC container vertically */
+    align-items: center;         /* Centers horizontally */
+}
+
+.toc-container {
+    text-align: center;
+    width: 100%;
+    max-width: 240px;            /* Keeps content compact */
+}
+
+nav h3 {
+    font-size: 1em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-light);
+    margin-bottom: 20px;
+    font-weight: 600;
+    border-bottom: 2px solid var(--secondary);
+    padding-bottom: 10px;
+}
+
+nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: left;            /* Left-aligns the list text */
+}
+
+nav li {
+    position: relative;
+    margin: 10px 0;
+    padding-left: 20px;          /* Space for bullet */
+}
+
+nav li::before {
+    content: "•";
+    color: var(--secondary);     /* Custom bullet color */
+    font-weight: bold;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+nav a {
+    color: var(--text);
+    text-decoration: none;
+    display: inline-block;
+    border-radius: 6px;
+    font-size: 0.95em;
+    padding: 4px 8px;
+    transition: all 0.2s;
+}
+
+nav a:hover {
+    background: var(--secondary);
+    color: white;
+    transform: translateX(4px);
+}
+
+@media (max-width: 968px) {
+    nav {
+        position: relative;
+        height: auto;
+        border-right: none;
+        border-bottom: 2px solid var(--border);
+        padding: 20px;
+    }
+
+    .toc-container {
+        max-width: none;
+    }
+
+    nav h3 {
+        text-align: center;
+    }
+
+    nav ul {
+        margin-top: 10px;
+        text-align: left;
+        padding-left: 30%;
+    }
+}
+
+        main {
+            padding: 50px;
+        }
+
+        section {
+            margin-bottom: 60px;
+            scroll-margin-top: 20px;
+        }
+
+        h2 {
+            color: var(--primary);
+            font-size: 2em;
+            margin-bottom: 25px;
+            padding-bottom: 12px;
+            border-bottom: 3px solid var(--secondary);
+            font-weight: 600;
+        }
+
+        h3 {
+            color: var(--secondary);
+            font-size: 1.5em;
+            margin-top: 35px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        h4 {
+            color: var(--primary);
+            font-size: 1.2em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 18px;
+            line-height: 1.8;
+        }
+
+        ul, ol {
+            margin-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+            line-height: 1.7;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px var(--shadow);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+        }
+
+        th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody tr:hover {
+            background: var(--highlight);
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        code {
+            background: var(--code-bg);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: var(--accent);
+        }
+
+        pre {
+            background: var(--code-bg);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid var(--secondary);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: var(--text);
+        }
+
+        .info-box {
+            background: #e8f4fd;
+            border-left: 4px solid var(--secondary);
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid var(--warning);
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid var(--success);
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        .highlight {
+            background: var(--highlight);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .metric-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 6px var(--shadow);
+        }
+
+        .metric-title {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .star-highlight {
+            color: var(--warning);
+            font-weight: bold;
+        }
+
+        footer {
+            background: var(--primary);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        footer a {
+            color: var(--secondary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        strong {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .formula {
+            background: #f8f9fa;
+            border: 2px solid var(--border);
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+
+        @media (max-width: 968px) {
+            .content-wrapper {
+                grid-template-columns: 1fr;
+            }
+
+            nav {
+                position: relative;
+                height: auto;
+                border-right: none;
+                border-bottom: 2px solid var(--border);
+            }
+
+            main {
+                padding: 30px 20px;
+            }
+
+            header h1 {
+                font-size: 2em;
+            }
+        }
+
+        nav::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        nav::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        nav::-webkit-scrollbar-thumb {
+            background: var(--secondary);
+            border-radius: 3px;
+        }
+
+        nav::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>DateTime Bitmask Storage Analysis</h1>
+            <p>Comprehensive Performance Benchmarking: Epoch vs Bitpack Storage Models</p>
+        </header>
+
+        <div class="content-wrapper">
+            <nav>
+                <div class="toc-container">
+                    <h3>Table of Contents</h3>
+                    <ul>
+                        <li><a href="#historical-context">Historical Context</a></li>
+                        <li><a href="#current-strategy">Current Strategy: Epoch</a></li>
+                        <li><a href="#proposed-strategy">Proposed Strategy to evaluate : Bitpack (Bitmask)</a></li>
+                        <li><a href="#bitpack-implementation">Bitpack Implementation</a></li>
+                        <li><a href="#multitenancy">Multitenancy &amp; Indexing</a></li>
+                        <li><a href="#benchmark-suite">Benchmark Suite</a></li>
+                        <li><a href="#performance-results">Performance Results</a></li>
+                        <li><a href="#conclusion">Conclusion</a></li>
+                    </ul>
+                </div>
+            </nav>
+
+            <main>
+                <section id="historical-context">
+                    <h2>Historical Context</h2>
+                    
+                    <h3>Initial Strategy</h3>
+                    <p>In our CRM system, Date and DateTime fields were originally stored using standard database date/time types:</p>
+                    <ul>
+                        <li><strong>Date:</strong> Stored as <code>DATE</code> type in <code>yyyy-mm-dd</code> format</li>
+                        <li><strong>DateTime:</strong> Stored as <code>TIMESTAMP</code> type in <code>yyyy-mm-dd hh:mm:ss</code> format in UTC timezone</li>
+                    </ul>
+
+                    <div class="info-box">
+                        <h4>Conversion Process</h4>
+                        <ul>
+                            <li>User-provided DateTime timestamps were converted from the context user's timezone to UTC/GMT on storage</li>
+                            <li>On retrieval, UTC/GMT values were converted back to the user's timezone</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <section id="current-strategy">
+                    <h2>Current Strategy: Epoch (Unix Timestamp)</h2>
+                    <p>We migrated to storing Date and DateTime as <code>BIGINT</code> values representing milliseconds since Unix epoch (January 1, 1970).</p>
+
+                    <h3>Date Storage</h3>
+                    <ul>
+                        <li>Stores the date's <code>00:00:00</code> date time value in UTC/GMT as a bigint</li>
+                        <li>Example: Date <code>'2025-10-01</code> will be treated as <code>'2025-10-01 00:00:00+00:00 (UTC/GMT)'</code> → <code>1759363200000</code></li>
+                        <li><strong>Reverse conversion in same way</strong> occurs on retrieval</li>
+                    </ul>
+
+                    <h3>DateTime Storage</h3>
+                    <ul>
+                        <li>User-provided DateTime is converted from context user timezone to UTC/GMT</li>
+                        <li>UTC/GMT DateTime value is converted to bigint (milliseconds since epoch)</li>
+                        <li>This final bigint value is stored in the database</li>
+                        <li><strong>Reverse conversion in same way</strong> occurs on retrieval</li>
+                    </ul>
+                </section>
+
+                <section id="proposed-strategy">
+                    <h2>Proposed Strategy to evaluate : Bitpack (Bitmask)</h2>
+
+                    <h3>Overview</h3>
+                    <p>The Bitpack strategy encodes datetime components (<code>year</code>, <code>month</code>, <code>day</code>, <code>hour</code>, <code>minute</code>, <code>second</code>, <code>microsecond</code>) into specific bit positions within a 64-bit <code>BIGINT</code> integer using bitwise operations.</p>
+
+                    <h3>Design Principles</h3>
+                    <p>We define a <strong>63-bit usable mapping</strong> (fits safely into 64-bit, leaving the sign bit unused as we only consider positive numbers).</p>
+
+                    <div class="info-box">
+                        <h4>Bit Allocation Method</h4>
+                        <ul>
+                            <li>Calculate the required value ranges for each datetime component</li>
+                            <li>Find the nearest power of 2 greater than the maximum expected value</li>
+                            <li>Subtract 1 to get the needed bit range</li>
+                            <li><strong>Example:</strong> There are 12 months (1-12)
+                                <ul>
+                                    <li>Binary: <code>0000b</code> (1) to <code>1100b</code> (12)</li>
+                                    <li>4 bits needed (since <code>16 = 10000b</code> requires 5 bits)</li>
+                                    <li>Upper bound: <code>2^4 - 1 = 15</code></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <h3>Bit Layout</h3>
+                    <p>The datetime components are packed from <strong>MSB (Most Significant Bit) → LSB (Least Significant Bit)</strong> in the order: Year → Month → Day → Hour → Minute → Second → Microsecond.</p>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Bits</th>
+                                <th>Range Supported</th>
+                                <th>Actual Range Needed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Year</td>
+                                <td>17</td>
+                                <td>0 to 131,071</td>
+                                <td>More than needed</td>
+                            </tr>
+                            <tr>
+                                <td>Month</td>
+                                <td>4</td>
+                                <td>0 to 15</td>
+                                <td>1 to 12</td>
+                            </tr>
+                            <tr>
+                                <td>Day</td>
+                                <td>5</td>
+                                <td>0 to 31</td>
+                                <td>1 to 31</td>
+                            </tr>
+                            <tr>
+                                <td>Hour</td>
+                                <td>5</td>
+                                <td>0 to 31</td>
+                                <td>0 to 23</td>
+                            </tr>
+                            <tr>
+                                <td>Minute</td>
+                                <td>6</td>
+                                <td>0 to 63</td>
+                                <td>0 to 59</td>
+                            </tr>
+                            <tr>
+                                <td>Second</td>
+                                <td>6</td>
+                                <td>0 to 63</td>
+                                <td>0 to 59</td>
+                            </tr>
+                            <tr>
+                                <td>Microsecond</td>
+                                <td>20</td>
+                                <td>0 to 1,048,575</td>
+                                <td>0 to 999,999</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Total Bits:</strong> <code>17 + 4 + 5 + 5 + 6 + 6 + 20 = 63 bits</code></p>
+
+                    <h3>Bit Shifting Strategy (LSB Offsets)</h3>
+                    <p>Bit positions are assigned from least significant bit (LSB) upward:</p>
+                    <ul>
+                        <li><strong>Microseconds:</strong> Offset 0</li>
+                        <li><strong>Second:</strong> Offset 20</li>
+                        <li><strong>Minute:</strong> Offset 26</li>
+                        <li><strong>Hour:</strong> Offset 32</li>
+                        <li><strong>Day:</strong> Offset 37</li>
+                        <li><strong>Month:</strong> Offset 42</li>
+                        <li><strong>Year:</strong> Offset 46</li>
+                    </ul>
+
+                    <h3>Chronological Ordering Property</h3>
+                    <p>Ordering the components this way (Year → Month → Day → Hour → Minute → Second → Microsecond) ensures that <span class="highlight">packed integer comparisons are chronological</span>.</p>
+
+                    <div class="success-box">
+                        <h4>Key Benefits</h4>
+                        <ul>
+                            <li>Higher year values create larger packed numbers</li>
+                            <li>Same year, higher month → larger number</li>
+                            <li>Range queries between datetimes map directly to ranges on the packed bigint</li>
+                            <li>Enables efficient range filtering without date function calls</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <section id="bitpack-implementation">
+                    <h2>Bitpack Implementation Details</h2>
+
+                    <h3>Packing Formula</h3>
+                    <p>Let <code>y</code>, <code>m</code>, <code>d</code>, <code>hh</code>, <code>mm</code>, <code>ss</code>, <code>ms</code> be the datetime components.</p>
+
+                    <div class="formula">
+                        <strong>Pack:</strong><br>
+                        <code>packedValue = (y << 46) | (m << 42) | (d << 37) | (hh << 32) | (mm << 26) | (ss << 20) | ms</code>
+                    </div>
+
+                    <div class="formula">
+                        <strong>Unpack:</strong><br>
+                        <code>year  = (packedValue >> 46) & ((1 << 17) - 1)  // Mask: 0x1FFFF</code><br>
+                        <code>month = (packedValue >> 42) & 15               // Mask: 0xF</code><br>
+                        <code>day   = (packedValue >> 37) & 31               // Mask: 0x1F</code><br>
+                        <code>hour  = (packedValue >> 32) & 31               // Mask: 0x1F</code><br>
+                        <code>min   = (packedValue >> 26) & 63               // Mask: 0x3F</code><br>
+                        <code>sec   = (packedValue >> 20) & 63               // Mask: 0x3F</code><br>
+                        <code>ms    = packedValue & ((1 << 20) - 1)          // Mask: 0xFFFFF</code>
+                    </div>
+
+                    <h3>Implementation Notes</h3>
+                    <ul>
+                        <li>All bitwise operations use unsigned right shifts (<code>>>></code> in Java)</li>
+                        <li>Values are validated to ensure they fit within expected ranges</li>
+                        <li>Overflow protection prevents invalid datetime values</li>
+                    </ul>
+                </section>
+
+                <section id="multitenancy">
+                    <h2>Multitenancy and Indexing Considerations</h2>
+
+                    <h3>The Multitenancy Challenge</h3>
+                    <p>Our system uses a <strong>multitenant data storage model</strong> where:</p>
+                    <ul>
+                        <li>A single <code>BIGINT</code> column (<code>cf3</code>) allocated for datetime in one module/org</li>
+                        <li>The same column may store different semantic values (e.g., long numbers) in another org</li>
+                        <li>This semantic variation across tenants creates indexing challenges</li>
+                    </ul>
+
+                    <div class="warning-box">
+                        <h4>Current Production State</h4>
+                        <p><strong>Schemas do not involve indexing of datetime columns</strong> due to multitenancy constraints.</p>
+                    </div>
+
+                    <h3>Can We Index? Version-Specific Analysis</h3>
+
+                    <h4>MySQL 5.7</h4>
+                    <div class="metric-card">
+                        <div class="metric-title">Capabilities</div>
+                        <ul>
+                            <li>Full table indexing for columns</li>
+                            <li><strong>Limitation:</strong> Does not support functional indexing</li>
+                        </ul>
+                        <div class="metric-title">Challenges</div>
+                        <ul>
+                            <li>Cannot create indexes on datetime extraction functions</li>
+                            <li><code>EXTRACT(MONTH FROM FROM_UNIXTIME(cf3/1000))</code> must be manually computed in each query</li>
+                            <li>Full-table indexes don't work well with multitenancy (indexes span all tenants)</li>
+                        </ul>
+                        <div class="metric-title">Result</div>
+                        <p>Not suitable for our multitenant, function-based datetime extraction needs.</p>
+                    </div>
+
+                    <h4>MySQL 8.0.13+</h4>
+                    <div class="metric-card">
+                        <div class="metric-title">Capabilities</div>
+                        <ul>
+                            <li>Full table indexing</li>
+                            <li><strong>Functional indexing</strong> (new feature)</li>
+                        </ul>
+                        <div class="metric-title">Example</div>
+                        <pre><code>CREATE INDEX idx_cf3_month ON custom1 ((MONTH(FROM_UNIXTIME(cf3 / 1000))));</code></pre>
+                        <div class="metric-title">Advantages</div>
+                        <ul>
+                            <li>Speeds up frequent <code>extract_month</code> analytical queries</li>
+                            <li>Functional indexes work on computed values</li>
+                        </ul>
+                        <div class="metric-title">Limitations</div>
+                        <ul>
+                            <li>Still has issues with multitenancy</li>
+                            <li>Semantics for the same column vary across different org ranges</li>
+                            <li>Cannot create tenant-specific functional indexes</li>
+                            <li>Global functional index may not optimize tenant-specific queries effectively</li>
+                        </ul>
+                    </div>
+
+                    <h4>PostgreSQL 9.6+</h4>
+                    <div class="metric-card">
+                        <div class="metric-title">Capabilities</div>
+                        <ul>
+                            <li>Full table indexing</li>
+                            <li>Functional indexing</li>
+                            <li><strong>Conditional indexing</strong> (partial indexes with WHERE clauses)</li>
+                        </ul>
+                        <div class="metric-title">Example</div>
+                        <pre><code>CREATE INDEX idx_cf3_month_org1111111 
+ON custom1 ((EXTRACT(MONTH FROM to_timestamp(cf3 / 1000)))) 
+WHERE org_id = 1111111;</code></pre>
+                        <div class="metric-title">Advantages</div>
+                        <ul>
+                            <li>Functional indexing for computed datetime values</li>
+                            <li><strong>Conditional indexing</strong> allows tenant-specific indexes</li>
+                            <li>Can create separate indexes per tenant with different semantics</li>
+                            <li>Solves analytical query optimization for tenant-wise queries</li>
+                            <li>Enables semantic-specific optimizations across multitenancy</li>
+                        </ul>
+                    </div>
+
+                    <div class="success-box">
+                        <h4>Result: Best Solution</h4>
+                        <p><strong>PostgreSQL</strong> provides the best solution for our multitenant scenario with varying column semantics.</p>
+                    </div>
+
+                    <h3>Benchmark Design Decision: No Indexes</h3>
+                    <p>Despite PostgreSQL's superior indexing capabilities, this benchmark suite <strong>intentionally omits indexes</strong> for the following reasons:</p>
+
+                    <ol>
+                        <li><strong>Storage Model Comparison Focus</strong>
+                            <ul>
+                                <li>We want to measure raw storage model performance (Epoch vs Bitpack)</li>
+                                <li>Index efficiency would mask storage model differences</li>
+                            </ul>
+                        </li>
+                        <li><strong>Fair Comparison</strong>
+                            <ul>
+                                <li>Both models tested under identical conditions</li>
+                                <li>No index overhead affecting either model differently</li>
+                            </ul>
+                        </li>
+                        <li><strong>Realistic Multitenant Scenario</strong>
+                            <ul>
+                                <li>Many multitenant systems use application-level tenant filtering</li>
+                                <li>Queries are pre-filtered by tenant before hitting the database</li>
+                                <li>Global indexes on tenant-agnostic columns may not be beneficial</li>
+                            </ul>
+                        </li>
+                        <li><strong>Production Considerations</strong>
+                            <ul>
+                                <li>In production, tenant-specific indexes can be added per PostgreSQL's conditional indexing</li>
+                                <li>This benchmark provides baseline performance without indexes</li>
+                                <li>Production systems can optimize further based on tenant-specific query patterns</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </section>
+
+                <section id="benchmark-suite">
+                    <h2>Benchmark Suite Overview</h2>
+
+                    <h3>Objective</h3>
+                    <p>Compare <strong>Epoch</strong> vs <strong>Bitpack</strong> datetime storage models across:</p>
+                    <ul>
+                        <li><strong>MySQL 5.7</strong> (row storage)</li>
+                        <li><strong>PostgreSQL 9.6 + Citus</strong> (columnar storage)</li>
+                    </ul>
+
+                    <h3>Storage Models Compared</h3>
+
+                    <h4>1. Epoch Model</h4>
+                    <ul>
+                        <li>Stores datetime as <code>BIGINT</code> milliseconds since Unix epoch</li>
+                        <li><strong>Java Conversion:</strong> <code>ZonedDateTime.toInstant().toEpochMilli()</code></li>
+                        <li><strong>SQL Extraction:</strong>
+                            <ul>
+                                <li>MySQL: <code>EXTRACT(YEAR FROM FROM_UNIXTIME(cf3/1000))</code></li>
+                                <li>PostgreSQL: <code>EXTRACT(YEAR FROM to_timestamp(cf3::numeric / 1000))</code></li>
+                            </ul>
+                        </li>
+                        <li><strong>Advantages:</strong> Simple, standard, easy to query</li>
+                        <li><strong>Disadvantages:</strong> Requires function calls for extraction</li>
+                    </ul>
+
+                    <h4>2. Bitpack Model</h4>
+                    <ul>
+                        <li>Stores datetime components packed in a single <code>BIGINT</code> using bitwise operations</li>
+                        <li><strong>Java Conversion:</strong> <code>Bitpack.pack(ZonedDateTime, tenantPrefix)</code></li>
+                        <li><strong>SQL Extraction:</strong>
+                            <ul>
+                                <li>MySQL: <code>((cf3 >> 35) & 0x7FF) + 2000</code> (year extraction example)</li>
+                                <li>PostgreSQL: <code>((cf3 >> 35) & 2047) + 2000</code> (decimal equivalent)</li>
+                            </ul>
+                        </li>
+                        <li><strong>Advantages:</strong> Fast bitwise operations, no function calls</li>
+                        <li><strong>Disadvantages:</strong> More complex encoding/decoding</li>
+                    </ul>
+
+                    <h3>Database Systems</h3>
+
+                    <h4>MySQL 5.7 (InnoDB)</h4>
+                    <ul>
+                        <li><strong>Storage Engine:</strong> InnoDB</li>
+                        <li><strong>Primary Key:</strong> <code>BIGINT AUTO_INCREMENT</code></li>
+                        <li><strong>Configuration:</strong> Optimized for concurrent workloads
+                            <ul>
+                                <li><code>innodb_autoinc_lock_mode = 2</code></li>
+                                <li><code>innodb_lock_wait_timeout = 5</code></li>
+                                <li><code>innodb_flush_log_at_trx_commit = 2</code></li>
+                                <li>Binary logging disabled</li>
+                            </ul>
+                        </li>
+                    </ul>
+
+                    <h4>PostgreSQL 9.6 + Citus</h4>
+                    <ul>
+                        <li><strong>Version:</strong> PostgreSQL 9.6 with Citus extension (13.2-1)</li>
+                        <li><strong>Primary Key:</strong> <code>BIGSERIAL</code></li>
+                        <li><strong>Storage:</strong> Supports both standard row storage and columnar storage</li>
+                        <li><strong>Data Types:</strong> PostgreSQL-compatible (SMALLINT, BYTEA)</li>
+                    </ul>
+
+                    <h3>Workloads</h3>
+                    <p>The suite includes 6 workload types:</p>
+                    <ol>
+                        <li><strong>Insert:</strong> Batch inserts with randomized datetime (2015-2025)</li>
+                        <li><strong>Update:</strong> Range-based updates on datetime field</li>
+                        <li><strong>Select:</strong> Range queries with datetime conversion (retrieval + processing phases)</li>
+                        <li><strong>Extract:</strong> GROUP BY with year extraction</li>
+                        <li><strong>Transaction Mixed:</strong> Multi-operation transactions (INSERT + UPDATE)</li>
+                        <li><strong>Delete:</strong> Chunked deletes with range filters</li>
+                    </ol>
+
+                    <h3>Metrics Collected</h3>
+                    <ul>
+                        <li><strong>p50, p90, p99:</strong> Latency percentiles (milliseconds)</li>
+                        <li><strong>throughput:</strong> Rows per second (calculated from DB time only)</li>
+                        <li><strong>db_time:</strong> Database execution time (milliseconds)</li>
+                        <li><strong>processing_time:</strong> Java-side processing time (milliseconds)</li>
+                        <li><strong>total_time:</strong> End-to-end operation time (db_time + processing_time)</li>
+                    </ul>
+
+                    <h3>Configuration</h3>
+                    <ul>
+                        <li><strong>Threads:</strong> 8 concurrent threads</li>
+                        <li><strong>Total Rows:</strong> 200,000 rows per model</li>
+                        <li><strong>Batch Size:</strong> 1,000 rows per batch</li>
+                        <li><strong>Date Range:</strong> 2015-01-01 to 2025-12-31</li>
+                        <li><strong>Isolation Level:</strong> <code>READ_COMMITTED</code></li>
+                        <li><strong>Deadlock Retry:</strong> 3 attempts with exponential backoff</li>
+                    </ul>
+                </section>
+
+                <section id="performance-results">
+                    <h2>Performance Results</h2>
+
+                    <h3>Test Configuration</h3>
+                    <ul>
+                        <li><strong>Models:</strong> Epoch, Bitpack</li>
+                        <li><strong>Databases:</strong> MySQL 5.7, PostgreSQL 9.6 + Citus</li>
+                        <li><strong>Combinations:</strong> 4 total
+                            <ul>
+                                <li><code>mysql_epoch</code></li>
+                                <li><code>mysql_bitpack</code></li>
+                                <li><code>postgres_citus_epoch</code></li>
+                                <li><code>postgres_citus_bitpack</code></li>
+                            </ul>
+                        </li>
+                    </ul>
+
+                    <h3>Key Performance Metrics</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Database</th>
+                                <th>Model</th>
+                                <th>Insert Throughput</th>
+                                <th>Select Retrieval Throughput</th>
+                                <th>Extract Latency (p50)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>MySQL 5.7</td>
+                                <td>Epoch</td>
+                                <td>38.86 rows/s</td>
+                                <td>336.70 rows/s</td>
+                                <td>98.00ms</td>
+                            </tr>
+                            <tr>
+                                <td>MySQL 5.7</td>
+                                <td>Bitpack</td>
+                                <td>37.16 rows/s</td>
+                                <td>413.22 rows/s</td>
+                                <td>76.00ms</td>
+                            </tr>
+                            <tr>
+                                <td>PostgreSQL+Citus</td>
+                                <td>Epoch</td>
+                                <td>101.37 rows/s</td>
+                                <td>751.88 rows/s</td>
+                                <td>942.00ms</td>
+                            </tr>
+                            <tr>
+                                <td>PostgreSQL+Citus</td>
+                                <td>Bitpack</td>
+                                <td>106.55 rows/s</td>
+                                <td>687.29 rows/s</td>
+                                <td>208.00ms</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Detailed Results</h3>
+
+                    <h4>MySQL 5.7 - Epoch</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Workload</th>
+                                <th>Operation</th>
+                                <th>p50</th>
+                                <th>p90</th>
+                                <th>p99</th>
+                                <th>Throughput</th>
+                                <th>db_time</th>
+                                <th>processing_time</th>
+                                <th>total_time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>insert</td>
+                                <td>all</td>
+                                <td>24.00</td>
+                                <td>31.00</td>
+                                <td>110.00</td>
+                                <td>38.86</td>
+                                <td>25.74</td>
+                                <td>0.66</td>
+                                <td>27.54</td>
+                            </tr>
+                            <tr>
+                                <td>update</td>
+                                <td>cf3</td>
+                                <td>12.00</td>
+                                <td>749.00</td>
+                                <td>749.00</td>
+                                <td>2.63</td>
+                                <td>380.00</td>
+                                <td>0.00</td>
+                                <td>380.50</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>retrieval</td>
+                                <td>2.00</td>
+                                <td>4.00</td>
+                                <td>40.00</td>
+                                <td>336.70</td>
+                                <td>2.97</td>
+                                <td>0.00</td>
+                                <td>2.97</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>processing</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>0.00</td>
+                                <td>0.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                            </tr>
+                            <tr>
+                                <td>extract</td>
+                                <td>groupby</td>
+                                <td>98.00</td>
+                                <td>98.00</td>
+                                <td>98.00</td>
+                                <td>10.31</td>
+                                <td>97.00</td>
+                                <td>0.00</td>
+                                <td>98.00</td>
+                            </tr>
+                            <tr>
+                                <td>txn_mixed</td>
+                                <td>all</td>
+                                <td>17.00</td>
+                                <td>21.00</td>
+                                <td>32.00</td>
+                                <td>56.27</td>
+                                <td>17.77</td>
+                                <td>0.01</td>
+                                <td>18.65</td>
+                            </tr>
+                            <tr>
+                                <td>delete</td>
+                                <td>all</td>
+                                <td>775.00</td>
+                                <td>814.00</td>
+                                <td>856.00</td>
+                                <td>1.28</td>
+                                <td>781.82</td>
+                                <td>0.00</td>
+                                <td>782.39</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>MySQL 5.7 - Bitpack</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Workload</th>
+                                <th>Operation</th>
+                                <th>p50</th>
+                                <th>p90</th>
+                                <th>p99</th>
+                                <th>Throughput</th>
+                                <th>db_time</th>
+                                <th>processing_time</th>
+                                <th>total_time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>insert</td>
+                                <td>all</td>
+                                <td>26.00</td>
+                                <td>34.00</td>
+                                <td>90.00</td>
+                                <td>37.16</td>
+                                <td>26.91</td>
+                                <td>0.98</td>
+                                <td>28.83</td>
+                            </tr>
+                            <tr>
+                                <td>update</td>
+                                <td>cf3</td>
+                                <td>13.00</td>
+                                <td>781.00</td>
+                                <td>781.00</td>
+                                <td>2.53</td>
+                                <td>396.00</td>
+                                <td>0.00</td>
+                                <td>397.00</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>retrieval</td>
+                                <td>2.00</td>
+                                <td>4.00</td>
+                                <td>17.00</td>
+                                <td>413.22</td>
+                                <td>2.42</td>
+                                <td>0.00</td>
+                                <td>2.42</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>processing</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>0.00</td>
+                                <td>0.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                            </tr>
+                            <tr>
+                                <td>extract</td>
+                                <td>groupby</td>
+                                <td>76.00</td>
+                                <td>76.00</td>
+                                <td>76.00</td>
+                                <td>13.33</td>
+                                <td>75.00</td>
+                                <td>0.00</td>
+                                <td>76.00</td>
+                            </tr>
+                            <tr>
+                                <td>txn_mixed</td>
+                                <td>all</td>
+                                <td>18.00</td>
+                                <td>21.00</td>
+                                <td>35.00</td>
+                                <td>55.40</td>
+                                <td>18.05</td>
+                                <td>0.02</td>
+                                <td>19.05</td>
+                            </tr>
+                            <tr>
+                                <td>delete</td>
+                                <td>all</td>
+                                <td>753.00</td>
+                                <td>785.00</td>
+                                <td>1030.00</td>
+                                <td>1.31</td>
+                                <td>765.63</td>
+                                <td>0.00</td>
+                                <td>766.20</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>PostgreSQL + Citus - Epoch</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Workload</th>
+                                <th>Operation</th>
+                                <th>p50</th>
+                                <th>p90</th>
+                                <th>p99</th>
+                                <th>Throughput</th>
+                                <th>db_time</th>
+                                <th>processing_time</th>
+                                <th>total_time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>insert</td>
+                                <td>all</td>
+                                <td>11.00</td>
+                                <td>14.00</td>
+                                <td>20.00</td>
+                                <td>101.37</td>
+                                <td>9.87</td>
+                                <td>1.15</td>
+                                <td>12.05</td>
+                            </tr>
+                            <tr>
+                                <td>update</td>
+                                <td>cf3</td>
+                                <td>25.00</td>
+                                <td>77.00</td>
+                                <td>77.00</td>
+                                <td>19.61</td>
+                                <td>51.00</td>
+                                <td>0.00</td>
+                                <td>51.00</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>retrieval</td>
+                                <td>1.00</td>
+                                <td>2.00</td>
+                                <td>8.00</td>
+                                <td>751.88</td>
+                                <td>1.33</td>
+                                <td>0.00</td>
+                                <td>1.33</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>processing</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>0.00</td>
+                                <td>0.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                            </tr>
+                            <tr>
+                                <td>extract</td>
+                                <td>groupby</td>
+                                <td>942.00</td>
+                                <td>942.00</td>
+                                <td>942.00</td>
+                                <td>1.06</td>
+                                <td>942.00</td>
+                                <td>0.00</td>
+                                <td>942.00</td>
+                            </tr>
+                            <tr>
+                                <td>txn_mixed</td>
+                                <td>all</td>
+                                <td>5.00</td>
+                                <td>6.00</td>
+                                <td>11.00</td>
+                                <td>237.30</td>
+                                <td>4.21</td>
+                                <td>0.10</td>
+                                <td>5.05</td>
+                            </tr>
+                            <tr>
+                                <td>delete</td>
+                                <td>all</td>
+                                <td>4.00</td>
+                                <td>5.00</td>
+                                <td>9.00</td>
+                                <td>247.52</td>
+                                <td>4.04</td>
+                                <td>0.00</td>
+                                <td>4.52</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>PostgreSQL + Citus - Bitpack</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Workload</th>
+                                <th>Operation</th>
+                                <th>p50</th>
+                                <th>p90</th>
+                                <th>p99</th>
+                                <th>Throughput</th>
+                                <th>db_time</th>
+                                <th>processing_time</th>
+                                <th>total_time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>insert</td>
+                                <td>all</td>
+                                <td>11.00</td>
+                                <td>13.00</td>
+                                <td>19.00</td>
+                                <td>106.55</td>
+                                <td>9.39</td>
+                                <td>1.28</td>
+                                <td>11.72</td>
+                            </tr>
+                            <tr>
+                                <td>update</td>
+                                <td>cf3</td>
+                                <td>25.00</td>
+                                <td>77.00</td>
+                                <td>77.00</td>
+                                <td>19.80</td>
+                                <td>50.50</td>
+                                <td>0.00</td>
+                                <td>51.00</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>retrieval</td>
+                                <td>1.00</td>
+                                <td>2.00</td>
+                                <td>9.00</td>
+                                <td>687.29</td>
+                                <td>1.46</td>
+                                <td>0.00</td>
+                                <td>1.46</td>
+                            </tr>
+                            <tr>
+                                <td>select</td>
+                                <td>processing</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                                <td>0.00</td>
+                                <td>0.00</td>
+                                <td>1.00</td>
+                                <td>1.00</td>
+                            </tr>
+                            <tr>
+                                <td>extract</td>
+                                <td>groupby</td>
+                                <td>208.00</td>
+                                <td>208.00</td>
+                                <td>208.00</td>
+                                <td>4.83</td>
+                                <td>207.00</td>
+                                <td>0.00</td>
+                                <td>208.00</td>
+                            </tr>
+                            <tr>
+                                <td>txn_mixed</td>
+                                <td>all</td>
+                                <td>5.00</td>
+                                <td>6.00</td>
+                                <td>10.00</td>
+                                <td>245.94</td>
+                                <td>4.07</td>
+                                <td>0.15</td>
+                                <td>4.92</td>
+                            </tr>
+                            <tr>
+                                <td>delete</td>
+                                <td>all</td>
+                                <td>4.00</td>
+                                <td>4.00</td>
+                                <td>9.00</td>
+                                <td>253.81</td>
+                                <td>3.94</td>
+                                <td>0.00</td>
+                                <td>4.42</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Performance Analysis</h3>
+
+                    <h4>Insert Performance</h4>
+                    <ul>
+                        <li><strong>PostgreSQL+Citus:</strong> ~2.6x faster than MySQL (101-106 rows/s vs 37-38 rows/s)</li>
+                        <li><strong>Bitpack vs Epoch:</strong> Minimal difference in insert performance</li>
+                        <li><strong>Processing Overhead:</strong> Bitpack has slightly higher Java-side cost (0.98-1.28ms vs 0.66-1.15ms)</li>
+                    </ul>
+
+                    <h4>Select (Retrieval) Performance</h4>
+                    <ul>
+                        <li><strong>PostgreSQL+Citus:</strong> Significantly faster (687-751 rows/s vs 336-413 rows/s)</li>
+                        <li><strong>Bitpack:</strong> Slightly faster in MySQL (413 vs 336 rows/s), but slightly slower in PostgreSQL (687 vs 751 rows/s)</li>
+                    </ul>
+
+                    <h4>Extract/GroupBy Performance <span class="star-highlight">⭐ Key Finding</span></h4>
+                    <ul>
+                        <li><strong>MySQL:</strong> Fast extract operations (76-98ms p50)</li>
+                        <li><strong>PostgreSQL:</strong> Mixed performance
+                            <ul>
+                                <li><strong>Epoch:</strong> Very slow (942ms p50) due to <code>to_timestamp()</code> function overhead</li>
+                                <li><strong>Bitpack:</strong> Much faster (208ms p50) - <span class="highlight"><strong>4.5x improvement</strong></span> over Epoch</li>
+                            </ul>
+                        </li>
+                        <li><strong>Bitpack Advantage:</strong> Bitwise operations significantly outperform function-based extraction</li>
+                    </ul>
+
+                    <h4>Update Performance</h4>
+                    <ul>
+                        <li><strong>MySQL:</strong> Very slow (2.5-2.6 rows/s, 380-396ms p50) - table scans without indexes</li>
+                        <li><strong>PostgreSQL:</strong> Much faster (19.6-19.8 rows/s, 50-51ms p50) - better query optimizer</li>
+                    </ul>
+
+                    <h4>Transaction Mixed Performance</h4>
+                    <ul>
+                        <li><strong>PostgreSQL+Citus:</strong> ~4x faster than MySQL (237-245 rows/s vs 55-56 rows/s)</li>
+                        <li><strong>Processing Overhead:</strong> Minimal difference between models</li>
+                    </ul>
+
+                    <h4>Delete Performance</h4>
+                    <ul>
+                        <li><strong>PostgreSQL+Citus:</strong> Dramatically faster (247-253 rows/s, 4ms p50)</li>
+                        <li><strong>MySQL:</strong> Very slow (1.28-1.31 rows/s, 753-775ms p50) - table scans</li>
+                    </ul>
+
+                    <h3>Key Insights</h3>
+
+                    <h4>1. Storage Model Comparison</h4>
+                    <div class="metric-card">
+                        <div class="metric-title">Bitpack Advantages</div>
+                        <ul>
+                            <li><strong>Extract/GroupBy:</strong> 4.5x faster than Epoch in PostgreSQL (208ms vs 942ms)</li>
+                            <li><strong>Bitwise Operations:</strong> No function call overhead</li>
+                            <li><strong>Range Queries:</strong> Chronological ordering enables efficient range filtering</li>
+                        </ul>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-title">Epoch Advantages</div>
+                        <ul>
+                            <li><strong>Simplicity:</strong> Standard, well-understood approach</li>
+                            <li><strong>SQL Functions:</strong> Leverages database-native date functions</li>
+                            <li><strong>Lower Processing Overhead:</strong> Slightly faster Java-side conversion</li>
+                        </ul>
+                    </div>
+
+                    <h4>2. Database Comparison</h4>
+                    <div class="metric-card">
+                        <div class="metric-title">PostgreSQL + Citus</div>
+                        <ul>
+                            <li>Superior for most operations (inserts, selects, updates, deletes, transactions)</li>
+                            <li>2-4x better performance for most workloads</li>
+                            <li>Extract operations benefit significantly from Bitpack model</li>
+                        </ul>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-title">MySQL 5.7</div>
+                        <ul>
+                            <li>Competitive for extract operations (especially with Bitpack)</li>
+                            <li>Slower for updates and deletes without indexes</li>
+                            <li>Overall performance lower than PostgreSQL for most workloads</li>
+                        </ul>
+                    </div>
+
+                    <h4>3. Multitenancy Implications</h4>
+                    <div class="info-box">
+                        <h4>No-Index Design</h4>
+                        <ul>
+                            <li>Results reflect raw storage model performance</li>
+                            <li>Not masked by index efficiency</li>
+                            <li>Valid for scenarios with application-level tenant filtering</li>
+                        </ul>
+                    </div>
+
+                    <div class="success-box">
+                        <h4>Production Options</h4>
+                        <ul>
+                            <li><strong>MySQL 8.0.13+:</strong> Functional indexes can help, but multitenancy limitations remain</li>
+                            <li><strong>PostgreSQL:</strong> Conditional indexing enables tenant-specific optimizations</li>
+                            <li><strong>This Benchmark:</strong> Provides baseline performance for decision-making</li>
+                        </ul>
+                    </div>
+
+                    <h4>4. Production Recommendations</h4>
+                    <div class="metric-card">
+                        <div class="metric-title">For Analytics Workloads</div>
+                        <ul>
+                            <li><strong>Bitpack</strong> is strongly recommended</li>
+                            <li>Significant performance advantage in extract/groupby operations (4.5x in PostgreSQL)</li>
+                            <li>Bitwise operations avoid expensive function calls</li>
+                        </ul>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-title">For General-Purpose Applications</div>
+                        <ul>
+                            <li><strong>Epoch</strong> may be preferred for simplicity</li>
+                            <li>Standard SQL date functions provide flexibility</li>
+                            <li>Lower processing overhead</li>
+                        </ul>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-title">Database Choice</div>
+                        <ul>
+                            <li><strong>PostgreSQL + Citus:</strong> Recommended for overall performance</li>
+                            <li><strong>MySQL:</strong> Acceptable for specific workloads, especially with functional indexes (8.0.13+)</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <section id="conclusion">
+                    <h2>Conclusion</h2>
+                    <p>This comprehensive analysis demonstrates:</p>
+
+                    <ol>
+                        <li><strong>Bitpack</strong> offers significant advantages for extract/groupby operations (4.5x faster in PostgreSQL)</li>
+                        <li><strong>Epoch</strong> provides simpler, more standard datetime handling</li>
+                        <li><strong>PostgreSQL + Citus</strong> generally outperforms MySQL 5.7 for most workloads</li>
+                        <li><strong>No-index design</strong> reflects realistic multitenant scenarios</li>
+                        <li><strong>Production systems</strong> can leverage PostgreSQL's conditional indexing for tenant-specific optimizations</li>
+                    </ol>
+
+                    <div class="success-box">
+                        <p>The benchmark suite provides production-ready metrics and comprehensive error handling, enabling informed architectural decisions for datetime storage in multitenant systems.</p>
+                    </div>
+
+                    <h3>Technical References</h3>
+                    <ul>
+                        <li><strong>Bitpack Implementation:</strong> <a href="https://github.com/PirateKing53/mysql-datetime-benchmark/tree/master/java-benchmark/src/main/java/org/bench/Bitpack.java" target="_blank">Bitpack.java</a></li>
+                        <li><strong>Benchmark Suite:</strong> <a href="https://github.com/PirateKing53/mysql-datetime-benchmark/tree/master/java-benchmark/BENCHMARK_SUMMARY.md" target="_blank">BENCHMARK_SUMMARY.md</a></li>
+                        <li><strong>Metrics Documentation:</strong> <a href="https://github.com/PirateKing53/mysql-datetime-benchmark/tree/master/java-benchmark/METRICS_DOCUMENTATION.md" target="_blank">METRICS_DOCUMENTATION.md</a></li>
+                        <li><strong>Repository:</strong> <a href="https://github.com/PirateKing53/mysql-datetime-benchmark" target="_blank">GitHub Repository</a></li>
+                    </ul>
+
+                    <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center;">
+                        <p style="margin: 0; color: var(--text-light); font-size: 0.9em;"><em>Document Version: 1.0</em></p>
+                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9em;"><em>Last Updated: 2025-11-03</em></p>
+                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9em;"><em>Benchmark Results: Based on 200,000 rows, 8 threads, 1,000 batch size</em></p>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <footer>
+            <p>DateTime Bitmask Storage Analysis | Professional Benchmark Documentation</p>
+            <p style="margin-top: 10px;">For more information, visit the <a href="https://github.com/PirateKing53/mysql-datetime-benchmark" target="_blank">GitHub Repository</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('nav a').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                    
+                    // Update active state
+                    document.querySelectorAll('nav a').forEach(link => {
+                        link.style.background = '';
+                        link.style.color = '';
+                    });
+                    this.style.background = 'var(--secondary)';
+                    this.style.color = 'white';
+                }
+            });
+        });
+
+        // Highlight current section in navigation on scroll
+        const sections = document.querySelectorAll('section');
+        const navLinks = document.querySelectorAll('nav a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (window.pageYOffset >= sectionTop - 60) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.style.background = '';
+                link.style.color = '';
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.style.background = 'var(--secondary)';
+                    link.style.color = 'white';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

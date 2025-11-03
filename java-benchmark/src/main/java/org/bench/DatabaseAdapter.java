@@ -1,21 +1,58 @@
 package org.bench;
 
 /**
- * Database adapter to handle SQL dialect differences between MySQL and PostgreSQL/Citus
+ * Database adapter to handle SQL dialect differences between MySQL and PostgreSQL/Citus.
+ * 
+ * <p>This class provides a unified interface for database-specific SQL generation,
+ * abstracting away differences in:
+ * <ul>
+ *   <li>Primary key definitions (AUTO_INCREMENT vs BIGSERIAL)</li>
+ *   <li>Table engines (ENGINE=InnoDB vs none)</li>
+ *   <li>Date/time functions (FROM_UNIXTIME vs to_timestamp)</li>
+ *   <li>LIMIT clauses in UPDATE/DELETE statements</li>
+ *   <li>Bitwise operations (hex literals in MySQL vs decimal in PostgreSQL)</li>
+ *   <li>Connection pool properties</li>
+ *   <li>Citus-specific table distribution and columnar storage</li>
+ * </ul>
+ * 
+ * <p>All SQL generation methods automatically adapt their output based on the
+ * detected database type, allowing the benchmark workloads to remain database-agnostic.
+ * 
+ * @author krishna.sundar
+ * @version 1.0
  */
 public class DatabaseAdapter {
     private final DatabaseType dbType;
     
+    /**
+     * Creates a new database adapter for the specified database type.
+     * 
+     * @param dbType The database type to create an adapter for
+     */
     public DatabaseAdapter(DatabaseType dbType) {
         this.dbType = dbType;
     }
     
+    /**
+     * Creates a database adapter from a JDBC URL.
+     * 
+     * @param url The JDBC connection URL
+     * @return A new {@code DatabaseAdapter} instance for the detected database type
+     */
     public static DatabaseAdapter fromUrl(String url) {
         return new DatabaseAdapter(DatabaseType.fromUrl(url));
     }
     
     /**
-     * Get the primary key column definition
+     * Gets the SQL definition for a primary key column.
+     * 
+     * <p>Returns database-specific syntax:
+     * <ul>
+     *   <li>MySQL: {@code id BIGINT AUTO_INCREMENT PRIMARY KEY}</li>
+     *   <li>PostgreSQL: {@code id BIGSERIAL PRIMARY KEY}</li>
+     * </ul>
+     * 
+     * @return The primary key column definition SQL fragment
      */
     public String getPrimaryKeyDef() {
         switch (dbType) {
@@ -30,7 +67,15 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Get table engine/cluster type for CREATE TABLE
+     * Gets the table engine/cluster type clause for CREATE TABLE statements.
+     * 
+     * <p>Returns:
+     * <ul>
+     *   <li>MySQL: {@code ENGINE=InnoDB}</li>
+     *   <li>PostgreSQL: Empty string (no engine clause)</li>
+     * </ul>
+     * 
+     * @return The table engine SQL clause, or empty string if not applicable
      */
     public String getTableEngine() {
         switch (dbType) {
@@ -46,7 +91,14 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Convert MySQL FROM_UNIXTIME to PostgreSQL to_timestamp
+     * Converts a MySQL FROM_UNIXTIME expression to PostgreSQL to_timestamp.
+     * 
+     * <p>MySQL uses {@code FROM_UNIXTIME(column/1000)} while PostgreSQL uses
+     * {@code to_timestamp(column::numeric / 1000)}. This method handles the
+     * conversion automatically.
+     * 
+     * @param columnExpr The column expression (may already include /1000 division)
+     * @return Database-appropriate timestamp conversion function call
      */
     public String getUnixTimeToTimestamp(String columnExpr) {
         switch (dbType) {
@@ -70,7 +122,23 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Get EXTRACT expression for year extraction
+     * Gets the SQL expression for extracting the year from a datetime column.
+     * 
+     * <p>For epoch storage:
+     * <ul>
+     *   <li>MySQL: {@code EXTRACT(YEAR FROM FROM_UNIXTIME(column/1000))}</li>
+     *   <li>PostgreSQL: {@code EXTRACT(YEAR FROM to_timestamp(column::numeric / 1000))}</li>
+     * </ul>
+     * 
+     * <p>For bitpack storage:
+     * <ul>
+     *   <li>MySQL: {@code ((column >> 35) & 0x7FF) + 2000}</li>
+     *   <li>PostgreSQL: {@code ((column >> 35) & 2047) + 2000} (decimal instead of hex)</li>
+     * </ul>
+     * 
+     * @param columnExpr The column name or expression (e.g., "cf3")
+     * @param useBitpack If true, use bitwise extraction; if false, use date function extraction
+     * @return SQL expression for year extraction
      */
     public String getYearExtract(String columnExpr, boolean useBitpack) {
         if (useBitpack) {
@@ -103,7 +171,12 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Check if database supports LIMIT in UPDATE/DELETE
+     * Checks if the database supports LIMIT clauses in UPDATE and DELETE statements.
+     * 
+     * <p>MySQL supports direct LIMIT in UPDATE/DELETE, while PostgreSQL requires
+     * a subquery with LIMIT.
+     * 
+     * @return True if LIMIT is supported directly, false if subquery is required
      */
     public boolean supportsLimitInUpdateDelete() {
         switch (dbType) {
@@ -118,8 +191,16 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Convert UPDATE with LIMIT to PostgreSQL-compatible syntax
-     * PostgreSQL uses: UPDATE ... WHERE id IN (SELECT id FROM ... LIMIT ?)
+     * Converts an UPDATE statement with LIMIT to database-compatible syntax.
+     * 
+     * <p>MySQL: Adds LIMIT directly to the UPDATE statement.
+     * PostgreSQL: Wraps the WHERE clause in a subquery with LIMIT.
+     * 
+     * @param baseUpdate The base UPDATE statement (without LIMIT)
+     * @param table The table name
+     * @param whereClause The WHERE clause condition
+     * @param limit The limit value (unused in method signature, but kept for clarity)
+     * @return Database-compatible UPDATE statement with LIMIT
      */
     public String convertUpdateWithLimit(String baseUpdate, String table, String whereClause, int limit) {
         if (supportsLimitInUpdateDelete()) {
@@ -132,7 +213,16 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Convert DELETE with LIMIT to PostgreSQL-compatible syntax
+     * Converts a DELETE statement with LIMIT to database-compatible syntax.
+     * 
+     * <p>MySQL: Adds LIMIT directly to the DELETE statement.
+     * PostgreSQL: Wraps the WHERE clause in a subquery with LIMIT.
+     * 
+     * @param baseDelete The base DELETE statement (without LIMIT)
+     * @param table The table name
+     * @param whereClause The WHERE clause condition
+     * @param limit The limit value (unused in method signature, but kept for clarity)
+     * @return Database-compatible DELETE statement with LIMIT
      */
     public String convertDeleteWithLimit(String baseDelete, String table, String whereClause, int limit) {
         if (supportsLimitInUpdateDelete()) {
@@ -145,7 +235,22 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Get database-specific connection properties for HikariCP
+     * Configures HikariCP connection pool properties based on the database type.
+     * 
+     * <p>MySQL optimizations:
+     * <ul>
+     *   <li>Prepared statement caching (cachePrepStmts, prepStmtCacheSize)</li>
+     *   <li>Batch statement rewriting (rewriteBatchedStatements)</li>
+     *   <li>Server-side prepared statements (useServerPrepStmts)</li>
+     * </ul>
+     * 
+     * <p>PostgreSQL optimizations:
+     * <ul>
+     *   <li>Prepared statement caching (preparedStatementCacheQueries, preparedStatementCacheSizeMiB)</li>
+     *   <li>Batch insert rewriting (reWriteBatchedInserts)</li>
+     * </ul>
+     * 
+     * @param config The HikariCP configuration to modify
      */
     public void configureConnectionProperties(com.zaxxer.hikari.HikariConfig config) {
         switch (dbType) {
@@ -167,7 +272,15 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Create Citus-specific table distribution commands
+     * Generates SQL command to distribute a table in Citus.
+     * 
+     * <p>Returns a {@code SELECT create_distributed_table(...)} statement that
+     * distributes the table by the {@code tenant_module_range} column. For
+     * single-node Citus setups, this may fail gracefully - tables will still
+     * function correctly without distribution.
+     * 
+     * @param tableName The name of the table to distribute
+     * @return SQL command for table distribution, or null if not a Citus database
      */
     public String getCitusDistributionSQL(String tableName) {
         if (dbType == DatabaseType.POSTGRESQL_CITUS) {
@@ -181,7 +294,16 @@ public class DatabaseAdapter {
     }
     
     /**
-     * Create Citus columnar table conversion
+     * Generates SQL command to convert a table to columnar storage in Citus.
+     * 
+     * <p>Returns a columnar conversion command only if:
+     * <ul>
+     *   <li>The database is Citus-enabled</li>
+     *   <li>The {@code db.citus.columnar} system property is set to "true"</li>
+     * </ul>
+     * 
+     * @param tableName The name of the table to convert
+     * @return SQL command for columnar conversion, or null if not applicable
      */
     public String getCitusColumnarSQL(String tableName) {
         if (dbType == DatabaseType.POSTGRESQL_CITUS) {
@@ -194,6 +316,11 @@ public class DatabaseAdapter {
         return null;
     }
     
+    /**
+     * Gets the database type this adapter is configured for.
+     * 
+     * @return The {@code DatabaseType} enum value
+     */
     public DatabaseType getType() {
         return dbType;
     }

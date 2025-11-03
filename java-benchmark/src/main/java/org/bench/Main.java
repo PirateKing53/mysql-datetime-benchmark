@@ -4,6 +4,35 @@ import javax.sql.DataSource;
 import java.util.concurrent.*;
 import org.HdrHistogram.Histogram;
 
+/**
+ * Main entry point for the datetime storage benchmark suite.
+ * 
+ * <p>This benchmark compares two datetime storage models (Epoch vs Bitpack) across
+ * multiple database systems (MySQL 5.7 and PostgreSQL 9.6 + Citus). It measures
+ * latency, throughput, database execution time, and processing overhead for various
+ * database operations including inserts, updates, selects, extracts, transactions,
+ * and deletes.
+ * 
+ * <p>The benchmark supports the following command-line arguments:
+ * <ul>
+ *   <li>{@code --model epoch|bitpack}: Select the storage model (default: epoch)</li>
+ * </ul>
+ * 
+ * <p>System properties:
+ * <ul>
+ *   <li>{@code bench.threads}: Number of concurrent threads (default: 8)</li>
+ *   <li>{@code bench.rows}: Total number of rows to process (default: 200000)</li>
+ *   <li>{@code bench.batch}: Batch size for operations (default: 1000)</li>
+ *   <li>{@code bench.tenant}: Tenant prefix identifier (default: 1111111)</li>
+ *   <li>{@code db.url}: Database connection URL</li>
+ *   <li>{@code db.user}: Database username</li>
+ *   <li>{@code db.pass}: Database password</li>
+ *   <li>{@code bench.results.dir}: Results directory (default: results)</li>
+ * </ul>
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class Main {
     public static void main(String[] args) throws Exception {
         // Parse command line arguments

@@ -4,6 +4,27 @@ import javax.sql.DataSource;
 import java.sql.*;
 import org.HdrHistogram.Histogram;
 
+/**
+ * Benchmark workload for range-based update operations.
+ * 
+ * <p>This workload performs batch updates on the datetime column ({@code cf3})
+ * within specific tenant ranges. Updates are executed in batches with LIMIT
+ * clauses (handled differently for MySQL vs PostgreSQL).
+ * 
+ * <p>The workload measures three separate latency metrics:
+ * <ul>
+ *   <li><b>db_time</b>: Database execution time (UPDATE statement execution)</li>
+ *   <li><b>processing_time</b>: Java-side processing time (statement preparation, parameter binding)</li>
+ *   <li><b>total_time</b>: End-to-end time per update operation</li>
+ * </ul>
+ * 
+ * <p>Uses {@code READ_COMMITTED} isolation level and includes deadlock retry logic.
+ * The workload continues updating until a target number of rows is updated or
+ * maximum iterations are reached.
+ * 
+ * @author krishna.sundar
+ * @version 1.0
+ */
 public class UpdateWorkload implements Workload {
 
     private final DataSource ds;
@@ -19,6 +40,17 @@ public class UpdateWorkload implements Workload {
     private long totalUpdated;
     private int iterations;
 
+    /**
+     * Creates a new update workload (legacy constructor with default tenant).
+     * 
+     * @param ds The DataSource for database connections
+     * @param batchSize Number of rows to update per batch
+     * @param useRange Whether to use range-based updates (currently unused, kept for compatibility)
+     * @param useBitpack If true, use bitpack storage; if false, use epoch storage
+     * @param hist Histogram for total time metrics
+     * @param dbTimeHist Histogram for database execution time metrics
+     * @param procTimeHist Histogram for processing time metrics
+     */
     public UpdateWorkload(DataSource ds, int batchSize, boolean useRange, boolean useBitpack, Histogram hist, Histogram dbTimeHist, Histogram procTimeHist) {
         this.ds = ds;
         this.batchSize = batchSize;
@@ -29,6 +61,18 @@ public class UpdateWorkload implements Workload {
         this.tenantPrefix = 1111111; // Default tenant
     }
     
+    /**
+     * Creates a new update workload with explicit tenant prefix.
+     * 
+     * @param ds The DataSource for database connections
+     * @param batchSize Number of rows to update per batch
+     * @param useRange Whether to use range-based updates (currently unused, kept for compatibility)
+     * @param useBitpack If true, use bitpack storage; if false, use epoch storage
+     * @param tenantPrefix Tenant identifier prefix for tenant_module_range filtering
+     * @param hist Histogram for total time metrics
+     * @param dbTimeHist Histogram for database execution time metrics
+     * @param procTimeHist Histogram for processing time metrics
+     */
     public UpdateWorkload(DataSource ds, int batchSize, boolean useRange, boolean useBitpack, int tenantPrefix, Histogram hist, Histogram dbTimeHist, Histogram procTimeHist) {
         this.ds = ds;
         this.batchSize = batchSize;
@@ -117,6 +161,11 @@ public class UpdateWorkload implements Workload {
         }
     }
     
+    /**
+     * Gets the total elapsed time for the workload execution.
+     * 
+     * @return Elapsed time in seconds, or 0.0 if workload hasn't completed
+     */
     public double getElapsedTimeSeconds() {
         if (workloadEndTime > workloadStartTime) {
             return (workloadEndTime - workloadStartTime) / 1_000_000_000.0;
@@ -124,10 +173,20 @@ public class UpdateWorkload implements Workload {
         return 0.0;
     }
     
+    /**
+     * Gets the total number of rows updated.
+     * 
+     * @return Total rows updated
+     */
     public long getTotalUpdated() {
         return totalUpdated;
     }
     
+    /**
+     * Gets the number of update iterations performed.
+     * 
+     * @return Number of iterations
+     */
     public int getIterations() {
         return iterations;
     }
