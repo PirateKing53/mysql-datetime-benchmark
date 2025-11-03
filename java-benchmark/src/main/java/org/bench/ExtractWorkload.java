@@ -23,10 +23,24 @@ public class ExtractWorkload implements Workload {
         try (Connection c = ds.getConnection()) {
             c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             String table = useBitpack ? "bitpack" : "epoch";
-            String expr = useBitpack ? 
-                "((cf3 >> 35) & 0x7FF) + 2000" : 
-                "EXTRACT(YEAR FROM FROM_UNIXTIME(cf3/1000))";
-            String sql = "SELECT "+expr+" as yr, COUNT(*) as cnt FROM bench_common_"+table+" GROUP BY yr HAVING cnt > 0 ORDER BY yr";
+            DatabaseAdapter adapter = Config.DB_ADAPTER;
+            
+            // Use adapter to get database-specific year extraction
+            String expr = adapter.getYearExtract("cf3", useBitpack);
+            
+            // PostgreSQL requires full expression in GROUP BY, not alias
+            // MySQL allows alias in GROUP BY
+            String groupByClause;
+            if (adapter.getType() == DatabaseType.MYSQL) {
+                // MySQL: can use alias
+                groupByClause = "GROUP BY yr";
+            } else {
+                // PostgreSQL: must use full expression
+                groupByClause = "GROUP BY " + expr;
+            }
+            
+            String sql = "SELECT "+expr+" as yr, COUNT(*) as cnt FROM bench_common_"+table+" "+
+                        groupByClause+" HAVING COUNT(*) > 0 ORDER BY yr";
             
             // Processing: prepare query
             long procStart = System.nanoTime();

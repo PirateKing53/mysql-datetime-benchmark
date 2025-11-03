@@ -7,4 +7,7 @@ public class Config {
     public static final int DEFAULT_BATCH = Integer.getInteger("bench.batch", 1000);
     public static final int DEFAULT_THREADS = Integer.getInteger("bench.threads", 8);
     public static final String RESULTS_DIR = System.getProperty("bench.results.dir","results");
+    
+    // Database adapter instance
+    public static final DatabaseAdapter DB_ADAPTER = DatabaseAdapter.fromUrl(DB_URL);
 }

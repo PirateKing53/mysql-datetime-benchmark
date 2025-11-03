@@ -119,13 +119,16 @@ public class ReportWriter {
                     w.write("model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time\n");
                 }
                 // Write all rows for this model (skip header row)
+                // Use exact match to avoid partial matches (e.g., "epoch" matching "epoch_something")
                 for (String row : summaryRows) {
                     // Skip header row
                     if (row.startsWith("model,")) {
                         continue;
                     }
-                    // Write rows that match the current model
-                    if (row.startsWith(model + ",")) {
+                    // Write rows that match the current model exactly
+                    // Split by comma and check first field equals model exactly
+                    String[] parts = row.split(",", 2);
+                    if (parts.length > 0 && parts[0].equals(model)) {
                         w.write(row);
                         w.newLine();
                     }

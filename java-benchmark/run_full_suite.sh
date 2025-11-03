@@ -1,6 +1,8 @@
 #!/bin/bash
-# Don't exit on error - we want to run both models even if one fails
-set +e
+# Complete Benchmark Suite Runner
+# Runs all combinations: MySQL & PostgreSQL+Citus, Epoch & Bitpack models
+
+set +e  # Don't exit on error - run all combinations
 
 # Function to capitalize first letter (compatible with bash/zsh)
 capitalize() {
@@ -12,96 +14,254 @@ capitalize() {
 
 # Function to run benchmark with error handling
 run_benchmark() {
-    local model=$1
+    local db_type=$1
+    local model=$2
+    local db_cap=$(capitalize "$db_type")
     local model_cap=$(capitalize "$model")
+    
     echo ""
-    echo "⚙️ Running $model_cap datetime model benchmark ..."
     echo "=============================================="
-    java -jar "$BENCH_JAR" --model "$model"
-    local exit_code=$?
-    if [ $exit_code -eq 0 ]; then
-        echo "✅ $model_cap benchmark completed successfully"
+    echo "⚙️ Running $db_cap + $model_cap Benchmark"
+    echo "=============================================="
+    
+    # Set results directory based on DB and model
+    local results_dir="results/${db_type}_${model}"
+    mkdir -p "$results_dir"
+    
+    # Clear previous summary for this combination
+    rm -f "$results_dir/summary.csv" 2>/dev/null || true
+    
+    # Build Java command array based on database type
+    local java_args=("java")
+    
+    if [ "$db_type" = "mysql" ]; then
+        # MySQL - use default connection (or override with properties)
+        java_args+=("-Ddb.url=jdbc:mysql://127.0.0.1:${MYSQL_PORT}/benchdb?rewriteBatchedStatements=true&useServerPrepStmts=true")
+        java_args+=("-Ddb.user=${MYSQL_USER}")
+        java_args+=("-Ddb.pass=${MYSQL_PASSWORD}")
     else
-        echo "⚠️  $model_cap benchmark exited with code $exit_code, but continuing..."
+        # PostgreSQL + Citus
+        java_args+=("-Ddb.url=jdbc:postgresql://127.0.0.1:5432/benchdb")
+        java_args+=("-Ddb.user=postgres")
+        java_args+=("-Ddb.pass=postgres")
+        java_args+=("-Ddb.citus=true")
+    fi
+    
+    java_args+=("-Dbench.results.dir=$results_dir")
+    java_args+=("-jar" "$BENCH_JAR")
+    java_args+=("--model" "$model")
+    
+    echo "Command: ${java_args[*]}"
+    echo ""
+    
+    "${java_args[@]}"
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        echo "✅ $db_cap + $model_cap benchmark completed successfully"
+    else
+        echo "⚠️  $db_cap + $model_cap benchmark exited with code $exit_code, but continuing..."
     fi
     return 0  # Always return success so script continues
 }
 
 # ---- CONFIG ----
-MYSQL_VERSION=5.7
-MYSQL_PORT=33306
-MYSQL_ROOT_PASSWORD=admin
-MYSQL_USER=admin
-MYSQL_PASSWORD=admin
+# Match docker-compose.yml settings
+MYSQL_PORT=3307
+MYSQL_USER=bench
+MYSQL_PASSWORD=benchpass
 MYSQL_DB=benchdb
 BENCH_JAR="target/bench-runner-1.0-jar-with-dependencies.jar"
 THREADS=8
 ROWS=200000
 BATCH=1000
-# ----------------
 
-echo "🚀 Starting benchmark environment ..."
+# Parse arguments
+RUN_MYSQL=true
+RUN_POSTGRES=true
+RUN_EPOCH=true
+RUN_BITPACK=true
+
+if [ "$1" = "--mysql-only" ]; then
+    RUN_POSTGRES=false
+elif [ "$1" = "--postgres-only" ]; then
+    RUN_MYSQL=false
+elif [ "$1" = "--epoch-only" ]; then
+    RUN_BITPACK=false
+elif [ "$1" = "--bitpack-only" ]; then
+    RUN_EPOCH=false
+fi
+
+echo "========================================="
+echo "🚀 Complete Benchmark Suite Runner"
+echo "========================================="
+echo ""
+echo "Configuration:"
+echo "  MySQL: $([ "$RUN_MYSQL" = "true" ] && echo "Yes" || echo "No")"
+echo "  PostgreSQL+Citus: $([ "$RUN_POSTGRES" = "true" ] && echo "Yes" || echo "No")"
+echo "  Epoch Model: $([ "$RUN_EPOCH" = "true" ] && echo "Yes" || echo "No")"
+echo "  Bitpack Model: $([ "$RUN_BITPACK" = "true" ] && echo "Yes" || echo "No")"
+echo ""
 
 # Build the project if needed
+cd "$(dirname "$0")"
 if [ ! -f "$BENCH_JAR" ]; then
     echo "📦 Building benchmark project ..."
     mvn clean package -DskipTests
 fi
 
-# 1️⃣ Start MySQL 5.7 (if not running)
-echo "🧱 Checking MySQL 5.7 ..."
-if ! docker ps | grep -q mysql57; then
-    echo "   Starting MySQL 5.7 container ..."
-    docker rm -f mysql57 >/dev/null 2>&1 || true
-    docker run -d --name mysql57 \
-      -e MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD \
-      -e MYSQL_DATABASE=$MYSQL_DB \
-      -e MYSQL_USER=$MYSQL_USER \
-      -e MYSQL_PASSWORD=$MYSQL_PASSWORD \
-      -p $MYSQL_PORT:3306 \
-      mysql:$MYSQL_VERSION \
-      --max_connections=500 \
-      --skip-log-bin \
-      --innodb_buffer_pool_size=1G \
-      --innodb_autoinc_lock_mode=2 \
-      --innodb_lock_wait_timeout=5 \
-      --innodb_flush_log_at_trx_commit=2 \
-      --innodb_deadlock_detect=1
-    
-    echo "⏳ Waiting for MySQL to start ..."
-    sleep 20
-else
-    echo "   MySQL already running"
+# Change to java-benchmark directory
+cd "$(dirname "$0")"
+
+# Start services using docker-compose (from bench_env root)
+echo "🐳 Starting Docker services ..."
+cd ..
+
+# Start MySQL if needed
+if [ "$RUN_MYSQL" = "true" ]; then
+    echo "🧱 Checking MySQL 5.7 ..."
+    if ! docker ps | grep -q bench_mysql57; then
+        echo "   Starting MySQL 5.7 via docker-compose ..."
+        docker-compose up -d mysql57
+        
+        echo "⏳ Waiting for MySQL to be ready ..."
+        for i in {1..30}; do
+            if docker exec bench_mysql57 mysqladmin ping -h localhost -u root -prootpass --silent 2>/dev/null; then
+                echo "   ✓ MySQL is ready"
+                break
+            fi
+            sleep 1
+        done
+    else
+        echo "   ✓ MySQL already running"
+    fi
 fi
 
-# Wait for MySQL to be ready
-echo "   Waiting for MySQL to be ready ..."
-for i in {1..30}; do
-    if docker exec mysql57 mysqladmin ping -h localhost --silent 2>/dev/null; then
-        break
+# Start PostgreSQL + Citus if needed
+if [ "$RUN_POSTGRES" = "true" ]; then
+    echo "🐘 Checking PostgreSQL + Citus ..."
+    if ! docker ps | grep -q bench_postgres_citus; then
+        echo "   Starting PostgreSQL + Citus via docker-compose ..."
+        docker-compose up -d postgres-citus
+        
+        echo "⏳ Waiting for PostgreSQL + Citus to initialize ..."
+        echo "   (This may take 60-90 seconds on ARM64 due to emulation)"
+        timeout=120
+        counter=0
+        while ! docker exec bench_postgres_citus pg_isready -U postgres > /dev/null 2>&1; do
+            sleep 3
+            counter=$((counter + 3))
+            if [ $counter -ge $timeout ]; then
+                echo "   ⚠️  PostgreSQL did not become ready within $timeout seconds"
+                break
+            fi
+            if [ $((counter % 15)) -eq 0 ]; then
+                echo -n "   ($counter)"
+            else
+                echo -n "."
+            fi
+        done
+        echo ""
+        
+        if docker exec bench_postgres_citus pg_isready -U postgres > /dev/null 2>&1; then
+            echo "   ✓ PostgreSQL + Citus is ready"
+            
+            # Setup database and Citus extension
+            echo "   Setting up benchdb and Citus extension ..."
+            sleep 3
+            
+            DB_EXISTS=$(docker exec bench_postgres_citus psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'benchdb'" 2>/dev/null | tr -d ' ' || echo "")
+            if [ "$DB_EXISTS" != "1" ]; then
+                docker exec bench_postgres_citus psql -U postgres -c "CREATE DATABASE benchdb;" 2>/dev/null || true
+            fi
+            
+            docker exec bench_postgres_citus psql -U postgres -d benchdb -c "CREATE EXTENSION IF NOT EXISTS citus;" 2>/dev/null || true
+        fi
+    else
+        echo "   ✓ PostgreSQL + Citus already running"
     fi
-    sleep 1
+fi
+
+# Change back to java-benchmark directory
+cd java-benchmark
+
+# Create main results directory
+mkdir -p results
+
+echo ""
+echo "========================================="
+echo "🏃 Running Benchmarks"
+echo "========================================="
+echo ""
+
+# Run all combinations in specific order:
+# 1. mysql_epoch
+# 2. mysql_bitpack
+# 3. postgres_citus_epoch
+# 4. postgres_citus_bitpack
+
+if [ "$RUN_MYSQL" = "true" ] && [ "$RUN_EPOCH" = "true" ]; then
+    run_benchmark mysql epoch
+fi
+
+if [ "$RUN_MYSQL" = "true" ] && [ "$RUN_BITPACK" = "true" ]; then
+    run_benchmark mysql bitpack
+fi
+
+if [ "$RUN_POSTGRES" = "true" ] && [ "$RUN_EPOCH" = "true" ]; then
+    run_benchmark postgres_citus epoch
+fi
+
+if [ "$RUN_POSTGRES" = "true" ] && [ "$RUN_BITPACK" = "true" ]; then
+    run_benchmark postgres_citus bitpack
+fi
+
+# Generate combined summary
+echo ""
+echo "========================================="
+echo "📊 Generating Combined Summary"
+echo "========================================="
+echo ""
+
+# Combine all summaries into one file
+COMBINED_SUMMARY="results/combined_summary.csv"
+echo "database_model,model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time" > "$COMBINED_SUMMARY"
+
+# Find all summary.csv files and append (skip header lines)
+for summary_file in results/*/summary.csv; do
+    if [ -f "$summary_file" ]; then
+        # Extract database type from path (e.g., results/mysql_epoch/summary.csv -> mysql_epoch)
+        db_model=$(basename $(dirname "$summary_file"))
+        # Prepend database_model column and append (skip header)
+        tail -n +2 "$summary_file" | sed "s/^/$db_model,/" >> "$COMBINED_SUMMARY" 2>/dev/null || true
+    fi
 done
 
-# Create results directory
-mkdir -p results
-rm -f results/summary.csv 2>/dev/null || true
-
-# 2️⃣ Run Epoch model benchmark
-run_benchmark epoch
-
-# 3️⃣ Run Bitpack model benchmark
-run_benchmark bitpack
-
-# 4️⃣ Display summary
-echo ""
-echo "✅ Benchmark complete!"
-echo ""
-echo "📁 Reports stored in: $(pwd)/results"
-echo ""
+# Also try old summary.csv if exists
 if [ -f "results/summary.csv" ]; then
-    echo "📊 Summary CSV:"
-    echo "==============="
-    head -20 results/summary.csv | column -t -s, || cat results/summary.csv
+    tail -n +2 results/summary.csv | sed "s/^/mysql_default,/" >> "$COMBINED_SUMMARY" 2>/dev/null || true
+fi
+
+# Display results
+echo ""
+echo "✅ Benchmark Suite Complete!"
+echo ""
+echo "📁 Results stored in: $(pwd)/results"
+echo ""
+echo "Individual Results:"
+for dir in results/*/; do
+    if [ -d "$dir" ] && [ -f "${dir}summary.csv" ]; then
+        echo "  - $(basename $dir)/summary.csv"
+    fi
+done
+echo ""
+if [ -f "$COMBINED_SUMMARY" ]; then
+    echo "📊 Combined Summary: $COMBINED_SUMMARY"
+    echo ""
+    echo "Quick Preview:"
+    echo "=============="
+    head -15 "$COMBINED_SUMMARY" | column -t -s, 2>/dev/null || head -15 "$COMBINED_SUMMARY"
+    echo ""
+    echo "Total rows: $(tail -n +2 "$COMBINED_SUMMARY" | wc -l | tr -d " ")"
 fi
 echo ""

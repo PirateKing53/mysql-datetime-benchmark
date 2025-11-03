@@ -1,0 +1,2 @@
+workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
+extract,groupby,943.00,943.00,943.00,1.06,943.00,0.00,943.00

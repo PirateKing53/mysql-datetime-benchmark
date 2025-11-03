@@ -1,0 +1,8 @@
+model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
+epoch,insert,all,12.00,14.00,21.00,101.47,9.86,1.31,12.19
+epoch,update,cf3,25.00,77.00,77.00,19.80,50.50,0.00,51.00
+epoch,select,retrieval,1.00,2.00,20.00,563.38,1.78,0.00,1.78
+epoch,select,processing,1.00,1.00,1.00,0.00,0.00,1.00,1.00
+epoch,extract,groupby,935.00,935.00,935.00,1.07,935.00,0.00,935.00
+epoch,txn_mixed,all,5.00,7.00,14.00,229.46,4.36,0.17,5.37
+epoch,delete,all,4.00,5.00,8.00,239.81,4.17,0.00,4.58

@@ -26,7 +26,17 @@ public class DeleteWorkload implements Workload {
             c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             c.setAutoCommit(false);
             String table = useBitpack ? "bitpack" : "epoch";
-            String sql = "DELETE FROM bench_common_"+table+" WHERE tenant_module_range BETWEEN ? AND ? LIMIT ?";
+            DatabaseAdapter adapter = Config.DB_ADAPTER;
+            
+            // Build DELETE SQL - adapter handles LIMIT syntax
+            String sql;
+            if (adapter.supportsLimitInUpdateDelete()) {
+                sql = "DELETE FROM bench_common_"+table+" WHERE tenant_module_range BETWEEN ? AND ? LIMIT ?";
+            } else {
+                // PostgreSQL: Use subquery with LIMIT
+                sql = "DELETE FROM bench_common_"+table+" " +
+                      "WHERE id IN (SELECT id FROM bench_common_"+table+" WHERE tenant_module_range BETWEEN ? AND ? LIMIT ?)";
+            }
             
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 long low = 11111110000000000L;

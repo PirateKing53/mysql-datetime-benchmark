@@ -1,0 +1,15 @@
+model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
+epoch,insert,all,10.00,13.00,21.00,105.15,9.51,0.81,11.35
+epoch,update,cf3,17.00,31.00,31.00,43.48,23.00,0.00,24.00
+epoch,select,retrieval,1.00,2.00,6.00,757.58,1.32,0.00,1.32
+epoch,select,processing,1.00,1.00,1.00,0.00,0.00,1.00,1.00
+epoch,extract,groupby,0.00,0.00,0.00,0.00,0.00,0.00,0.00
+epoch,txn_mixed,all,6.00,8.00,13.00,188.08,5.32,0.12,6.25
+epoch,delete,all,4.00,5.00,11.00,248.76,4.02,0.00,4.58
+epoch,insert,all,11.00,13.00,41.00,100.65,9.94,0.96,11.89
+epoch,update,cf3,26.00,78.00,78.00,19.61,51.00,0.00,52.00
+epoch,select,retrieval,1.00,2.00,6.00,735.29,1.36,0.00,1.36
+epoch,select,processing,1.00,1.00,1.00,0.00,0.00,1.00,1.00
+epoch,extract,groupby,943.00,943.00,943.00,1.06,943.00,0.00,943.00
+epoch,txn_mixed,all,5.00,6.00,11.00,239.75,4.17,0.13,5.05
+epoch,delete,all,4.00,5.00,7.00,248.76,4.02,0.00,4.59

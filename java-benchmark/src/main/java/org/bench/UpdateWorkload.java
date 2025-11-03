@@ -49,7 +49,18 @@ public class UpdateWorkload implements Workload {
             conn.setAutoCommit(false);
             
             String table = useBitpack ? "bitpack" : "epoch";
-            String sql = "UPDATE bench_common_"+table+" SET cf3 = cf3 + 1000 WHERE tenant_module_range BETWEEN ? AND ? LIMIT ?";
+            DatabaseAdapter adapter = Config.DB_ADAPTER;
+            
+            // Build base UPDATE SQL - adapter will handle LIMIT syntax
+            String baseSql = "UPDATE bench_common_"+table+" SET cf3 = cf3 + 1000 WHERE tenant_module_range BETWEEN ? AND ?";
+            String sql;
+            if (adapter.supportsLimitInUpdateDelete()) {
+                sql = baseSql + " LIMIT ?";
+            } else {
+                // PostgreSQL: Use subquery with LIMIT
+                sql = "UPDATE bench_common_"+table+" SET cf3 = cf3 + 1000 " +
+                      "WHERE id IN (SELECT id FROM bench_common_"+table+" WHERE tenant_module_range BETWEEN ? AND ? LIMIT ?)";
+            }
             
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 // Use the same range as inserts to match the data
@@ -61,7 +72,9 @@ public class UpdateWorkload implements Workload {
                 while (iterations < maxIterations && totalUpdated < 10000) {
                     // Processing: prepare statement
                     long procStart = System.nanoTime();
-                    ps.setLong(1, low + (iterations * 1000000)); // Shift range slightly each iteration
+                    long lowVal = low + (iterations * 1000000); // Shift range slightly each iteration
+                    // Parameters are the same for both MySQL and PostgreSQL (low, high, limit)
+                    ps.setLong(1, lowVal);
                     ps.setLong(2, high);
                     ps.setInt(3, batchSize);
                     long procEnd = System.nanoTime();

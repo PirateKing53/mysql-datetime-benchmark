@@ -1,0 +1,8 @@
+model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
+bitpack,insert,all,24.00,28.00,47.00,42.10,23.76,0.82,25.64
+bitpack,update,cf3,12.00,737.00,737.00,2.68,373.50,0.00,374.50
+bitpack,select,retrieval,1.00,4.00,44.00,350.88,2.85,0.00,2.85
+bitpack,select,processing,1.00,1.00,1.00,0.00,0.00,1.00,1.00
+bitpack,extract,groupby,68.00,68.00,68.00,15.15,66.00,0.50,68.00
+bitpack,txn_mixed,all,17.00,19.00,36.00,58.87,16.99,0.01,17.81
+bitpack,delete,all,759.00,815.00,855.00,1.29,772.90,0.00,773.46

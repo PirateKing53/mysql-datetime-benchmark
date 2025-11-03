@@ -1,0 +1,2 @@
+workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
+delete,all,5.00,8.00,22.00,185.19,5.40,0.00,5.91
