@@ -172,6 +172,9 @@ public class DatabaseAdapter {
     public String getCitusDistributionSQL(String tableName) {
         if (dbType == DatabaseType.POSTGRESQL_CITUS) {
             // Distribute by tenant_module_range for Citus
+            // For single-node Citus, distribution may not work - that's okay, tables still function
+            // Use direct function call without explicit casts - let PostgreSQL infer types
+            // If this fails, tables will still work (just not distributed)
             return "SELECT create_distributed_table('" + tableName + "', 'tenant_module_range');";
         }
         return null; // Not a Citus table

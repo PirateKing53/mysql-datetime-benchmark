@@ -1,2 +1,2 @@
 workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
-update,cf3,12.00,737.00,737.00,2.68,373.50,0.00,374.50
+update,cf3,13.00,781.00,781.00,2.53,396.00,0.00,397.00

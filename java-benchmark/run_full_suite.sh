@@ -222,24 +222,37 @@ echo "========================================="
 echo "📊 Generating Combined Summary"
 echo "========================================="
 echo ""
+echo "Merging all 4 individual summaries into combined_summary.csv..."
 
 # Combine all summaries into one file
 COMBINED_SUMMARY="results/combined_summary.csv"
+rm -f "$COMBINED_SUMMARY" 2>/dev/null || true  # Start fresh
+
+# Create header
 echo "database_model,model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time" > "$COMBINED_SUMMARY"
 
-# Find all summary.csv files and append (skip header lines)
-for summary_file in results/*/summary.csv; do
+# Find all summary.csv files from the 4 combinations and append (skip header lines)
+# Expected directories: mysql_epoch, mysql_bitpack, postgres_citus_epoch, postgres_citus_bitpack
+for summary_file in results/mysql_epoch/summary.csv \
+                    results/mysql_bitpack/summary.csv \
+                    results/postgres_citus_epoch/summary.csv \
+                    results/postgres_citus_bitpack/summary.csv; do
     if [ -f "$summary_file" ]; then
         # Extract database type from path (e.g., results/mysql_epoch/summary.csv -> mysql_epoch)
         db_model=$(basename $(dirname "$summary_file"))
         # Prepend database_model column and append (skip header)
         tail -n +2 "$summary_file" | sed "s/^/$db_model,/" >> "$COMBINED_SUMMARY" 2>/dev/null || true
+        echo "  ✓ Added: $db_model"
     fi
 done
 
-# Also try old summary.csv if exists
+# Also include any old summary.csv if it exists (for backward compatibility)
 if [ -f "results/summary.csv" ]; then
-    tail -n +2 results/summary.csv | sed "s/^/mysql_default,/" >> "$COMBINED_SUMMARY" 2>/dev/null || true
+    # Check if it's not already included in combined summary
+    if ! grep -q "mysql_epoch\|mysql_bitpack\|postgres_citus" "$COMBINED_SUMMARY" 2>/dev/null; then
+        tail -n +2 results/summary.csv | sed "s/^/mysql_default,/" >> "$COMBINED_SUMMARY" 2>/dev/null || true
+        echo "  ✓ Added: mysql_default (legacy)"
+    fi
 fi
 
 # Display results
@@ -256,12 +269,21 @@ for dir in results/*/; do
 done
 echo ""
 if [ -f "$COMBINED_SUMMARY" ]; then
+    row_count=$(tail -n +2 "$COMBINED_SUMMARY" | wc -l | tr -d " ")
     echo "📊 Combined Summary: $COMBINED_SUMMARY"
+    echo "   Total rows: $row_count (from all 4 combinations)"
     echo ""
     echo "Quick Preview:"
     echo "=============="
-    head -15 "$COMBINED_SUMMARY" | column -t -s, 2>/dev/null || head -15 "$COMBINED_SUMMARY"
+    head -20 "$COMBINED_SUMMARY" | column -t -s, 2>/dev/null || head -20 "$COMBINED_SUMMARY"
     echo ""
-    echo "Total rows: $(tail -n +2 "$COMBINED_SUMMARY" | wc -l | tr -d " ")"
+    echo "📁 File location: $(pwd)/$COMBINED_SUMMARY"
+    echo ""
+    echo "To view full summary:"
+    echo "  cat $COMBINED_SUMMARY"
+    echo "  or"
+    echo "  cat $COMBINED_SUMMARY | column -t -s,"
+else
+    echo "⚠️  Combined summary not generated (check individual summary files)"
 fi
 echo ""

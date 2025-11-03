@@ -1,2 +1,2 @@
 workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
-extract,groupby,68.00,68.00,68.00,15.15,66.00,0.50,68.00
+extract,groupby,76.00,76.00,76.00,13.33,75.00,0.00,76.00

@@ -12,13 +12,13 @@ cd java-benchmark
 This automatically:
 1. Builds the project (if needed)
 2. Starts Docker services (MySQL and/or PostgreSQL + Citus)
-3. Runs all 4 combinations:
-   - MySQL + Epoch
-   - MySQL + Bitpack
-   - PostgreSQL + Citus + Epoch
-   - PostgreSQL + Citus + Bitpack
-4. Generates organized CSV reports
-5. Creates combined summary
+3. Runs all 4 combinations **in this exact order**:
+   - MySQL + Epoch (`mysql_epoch`)
+   - MySQL + Bitpack (`mysql_bitpack`)
+   - PostgreSQL + Citus + Epoch (`postgres_citus_epoch`)
+   - PostgreSQL + Citus + Bitpack (`postgres_citus_bitpack`)
+4. Generates organized CSV reports in separate directories
+5. Creates `combined_summary.csv` with all results merged
 
 ## Filtering Options
 
@@ -99,21 +99,39 @@ java -Ddb.url=jdbc:postgresql://127.0.0.1:5432/benchdb \
 ```
 results/
 ├── mysql_epoch/
-│   ├── summary.csv
+│   ├── summary.csv           # Individual summary for mysql_epoch
 │   ├── insert-epoch-summary.csv
-│   ├── update-epoch-summary.csv
-│   ├── select-epoch-summary.csv
-│   ├── extract-epoch-summary.csv
-│   ├── txn_mixed-epoch-summary.csv
-│   └── delete-epoch-summary.csv
+│   └── ... (other workload CSVs)
 ├── mysql_bitpack/
+│   ├── summary.csv           # Individual summary for mysql_bitpack
 │   └── ...
 ├── postgres_citus_epoch/
+│   ├── summary.csv           # Individual summary for postgres_citus_epoch
 │   └── ...
 ├── postgres_citus_bitpack/
+│   ├── summary.csv           # Individual summary for postgres_citus_bitpack
 │   └── ...
-└── combined_summary.csv  # All results merged
+└── combined_summary.csv      # ⭐ SINGLE FILE with ALL 4 combinations merged
 ```
+
+### Combined Summary CSV
+
+The `combined_summary.csv` file is automatically generated and contains **all results from all 4 combinations** in one file:
+
+**Format:**
+```csv
+database_model,model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
+mysql_epoch,epoch,insert,all,2.90,4.50,6.70,12400,2.10,0.80,2.90
+mysql_bitpack,bitpack,insert,all,2.60,4.10,5.90,13200,2.00,0.60,2.60
+postgres_citus_epoch,epoch,insert,all,10.00,13.00,21.00,105,9.51,0.81,11.35
+postgres_citus_bitpack,bitpack,insert,all,11.00,15.00,25.00,95,10.20,1.10,12.30
+...
+```
+
+**Benefits:**
+- Single file for easy comparison across all databases and models
+- `database_model` column identifies the source (mysql_epoch, mysql_bitpack, etc.)
+- Easy to filter, sort, or analyze in Excel, Python, or other tools
 
 ### Summary CSV Format
 

@@ -28,11 +28,11 @@ cd java-benchmark
 ./run_full_suite.sh
 ```
 
-This runs all 4 combinations automatically:
-- MySQL + Epoch
-- MySQL + Bitpack  
-- PostgreSQL + Citus + Epoch
-- PostgreSQL + Citus + Bitpack
+This runs all 4 combinations automatically **in this exact order**:
+1. MySQL + Epoch (`mysql_epoch`)
+2. MySQL + Bitpack (`mysql_bitpack`)
+3. PostgreSQL + Citus + Epoch (`postgres_citus_epoch`)
+4. PostgreSQL + Citus + Bitpack (`postgres_citus_bitpack`)
 
 ### Filter Specific Combinations
 
@@ -196,7 +196,9 @@ SELECT create_distributed_table('bench_common_epoch', 'tenant_module_range');
 **Bitpack Model:**
 - Stores datetime fields packed in `BIGINT`
 - Conversion: `Bitpack.pack(zdt, tenantPrefix)`
-- Extraction: Bitwise operations `((cf3 >> 35) & 0x7FF) + 2000` (database-agnostic)
+- Extraction: Bitwise operations
+  - MySQL: `((cf3 >> 35) & 0x7FF) + 2000`
+  - PostgreSQL: `((cf3 >> 35) & 2047) + 2000` (decimal equivalent, 2047 = 0x7FF)
 
 ### Database Abstraction
 

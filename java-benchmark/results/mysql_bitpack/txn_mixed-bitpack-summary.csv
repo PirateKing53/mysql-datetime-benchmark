@@ -1,2 +1,2 @@
 workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
-txn_mixed,all,17.00,19.00,36.00,58.87,16.99,0.01,17.81
+txn_mixed,all,18.00,21.00,35.00,55.40,18.05,0.02,19.05

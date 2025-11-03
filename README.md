@@ -36,12 +36,13 @@ cd java-benchmark
 This will automatically:
 - Build the Java benchmark project
 - Start required Docker services (MySQL and/or PostgreSQL)
-- Run all 4 combinations:
-  - MySQL + Epoch
-  - MySQL + Bitpack
-  - PostgreSQL + Citus + Epoch
-  - PostgreSQL + Citus + Bitpack
-- Generate organized CSV reports in `results/`
+- Run all 4 combinations **in this exact order**:
+  1. MySQL + Epoch (`mysql_epoch`)
+  2. MySQL + Bitpack (`mysql_bitpack`)
+  3. PostgreSQL + Citus + Epoch (`postgres_citus_epoch`)
+  4. PostgreSQL + Citus + Bitpack (`postgres_citus_bitpack`)
+- Generate organized CSV reports in separate directories
+- Create `combined_summary.csv` with all results merged
 
 ### 3. View Results
 
@@ -78,15 +79,17 @@ cd java-benchmark
 ```
 java-benchmark/results/
 ├── mysql_epoch/
-│   └── summary.csv
+│   └── summary.csv              # Individual summary
 ├── mysql_bitpack/
-│   └── summary.csv
+│   └── summary.csv              # Individual summary
 ├── postgres_citus_epoch/
-│   └── summary.csv
+│   └── summary.csv              # Individual summary
 ├── postgres_citus_bitpack/
-│   └── summary.csv
-└── combined_summary.csv  # All results merged
+│   └── summary.csv              # Individual summary
+└── combined_summary.csv         # ⭐ SINGLE FILE: All 4 combinations merged
 ```
+
+The `combined_summary.csv` is the **single unified CSV file** containing all results from all 4 combinations, making it easy to compare MySQL vs PostgreSQL and Epoch vs Bitpack in one place.
 
 ## Manual Service Management
 

@@ -106,10 +106,9 @@ EXTRACT(YEAR FROM FROM_UNIXTIME(cf3/1000))
 EXTRACT(YEAR FROM to_timestamp(cf3::numeric / 1000))
 ```
 
-**Bitpack (Database-agnostic):**
-```sql
-((cf3 >> 35) & 0x7FF) + 2000
-```
+**Bitpack:**
+- **MySQL**: `((cf3 >> 35) & 0x7FF) + 2000` (uses hex literal)
+- **PostgreSQL**: `((cf3 >> 35) & 2047) + 2000` (uses decimal, 2047 = 0x7FF)
 
 ### 5. UPDATE/DELETE with LIMIT
 

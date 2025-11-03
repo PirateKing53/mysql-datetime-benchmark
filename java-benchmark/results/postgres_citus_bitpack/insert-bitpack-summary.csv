@@ -1,2 +1,2 @@
 workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
-insert,all,11.00,13.00,17.00,105.54,9.48,1.30,11.79
+insert,all,11.00,13.00,19.00,106.55,9.39,1.28,11.72
