@@ -39,14 +39,19 @@ p99 = Histogram.getValueAtPercentile(99.0)
 **Unit:** Operations per second (ops/sec) or Rows per second (rows/sec)  
 **Precision:** 2 decimal places
 
+#### Important: Throughput Calculated from DB Time Only
+**Throughput measures database I/O capacity, NOT total operation time.**  
+Throughput is calculated **only from database execution time** (`db_time`), excluding Java-side processing time. This provides true apples-to-apples comparison of I/O performance between models.
+
 #### Calculation Formula
 ```
-Primary Formula:
-throughput = operationCount / elapsedTimeSeconds
+throughput = totalOperations / totalDbTimeSeconds
 
-Fallback Formula (if elapsedTime not provided):
-totalTimeSeconds = (meanLatencyMs * totalCount) / 1000.0
-throughput = totalCount / totalTimeSeconds
+Where:
+totalDbTimeSeconds = (dbTimeMs_mean * totalCount) / 1000.0
+
+This ensures throughput reflects pure database I/O performance,
+not CPU-bound processing overhead.
 ```
 
 #### Time Tracking
@@ -136,8 +141,9 @@ Time Range: executeQuery() execution only (data retrieval from DB)
 
 **Select Processing:**
 ```
-Note: Same as Select Retrieval (shared dbTimeHist)
-Time Range: executeQuery() execution only
+db_time = 0.0
+Note: No database operations involved in CPU conversion phase
+Time Range: N/A (pure CPU conversion, no DB I/O)
 ```
 
 **Delete/Extract/TxnMixed:**
@@ -185,6 +191,8 @@ Time Range: PreparedStatement parameter setting only
 Start: procStart = System.nanoTime() (before parameter setting)
 End: procEnd = System.nanoTime() (after parameter setting, before executeQuery())
 Time Range: Minimal - just parameter setting (query is pre-prepared)
+Recorded to: procTimeHist
+Used for: retrieval processing_time metric
 Note: Usually ~0ms as query is already prepared
 ```
 
@@ -199,6 +207,9 @@ Time Range: Per-query row processing:
   - Touch value (zdt.getYear())
   
 Per-row average calculated as: totalProcTime / rowCount
+Recorded to: histProcessing (NOT procTimeHist - kept separate!)
+Used for: processing processing_time metric (via histProcessing.getMean())
+Note: This is the CPU conversion cost we're measuring
 ```
 
 **Extract Workload:**
@@ -293,8 +304,8 @@ histRetrieval.recordValue(dbTimeMs)  // Once per query
 **Metrics Tracked:**
 - **p50/p90/p99**: Per-row processing latency (datetime conversion + data access)
 - **throughput**: **0.0** (not calculated - CPU-only operation, throughput is meaningless)
-- **db_time**: Same as retrieval (shared histogram)
-- **processing_time**: Average time for datetime conversion per row
+- **db_time**: **0.0** (no database operations involved in CPU conversion)
+- **processing_time**: Average time for datetime conversion per row (from `histProcessing` mean)
 
 **Timeline:**
 ```
@@ -312,16 +323,88 @@ totalProcTimeMs = (procEnd2 - procStart2) / 1_000_000.0
 avgProcTimeMs = totalProcTimeMs / rowCount
 // Round up sub-millisecond values to 1ms
 timeToRecord = avgProcTimeMs > 0 && avgProcTimeMs < 1.0 ? 1L : Math.round(avgProcTimeMs)
-// Record average for each row
+// Record average for each row to histProcessing ONLY (NOT procTimeHist)
 for each row: histProcessing.recordValue(timeToRecord)
+// Note: procTimeHist is kept separate for retrieval prep time only
 ```
 
 **Important Notes:**
 - **Throughput is NOT calculated** for processing (set to 0.0)
 - Processing is a CPU-bound conversion loop, not an I/O operation
 - Throughput from CPU-only loops is misleading and not comparable between models
+- **db_time is 0.0** for processing (no database involved in conversion phase)
+- **processing_time** comes from `histProcessing.getMean()` (conversion time per row)
 - Latency metrics (p50/p90/p99) are still meaningful - they show conversion cost differences
 - This allows fair comparison between epoch and bitpack conversion performance
+- **Key Separation**: 
+  - Retrieval uses `procTimeHist` for prep time (~0ms)
+  - Processing uses `histProcessing` for conversion time (what we're measuring)
+
+---
+
+### 5. **total_time** (Total Operation Time)
+**Unit:** Milliseconds (ms)  
+**Precision:** 2 decimal places
+
+#### Definition
+Complete operation latency including both database execution time and Java-side processing time. This represents the end-to-end time for each operation as experienced by the application.
+
+#### Calculation Formula
+```
+total_time = totalTimeHistogram.getMean()
+
+Where totalTimeHistogram records:
+totalTime = (totalEndTime - totalStartTime) / 1_000_000.0  // nanoseconds to milliseconds
+
+total_time = db_time + processing_time (sum of components)
+```
+
+#### Time Tracking
+
+**Insert Workload:**
+```
+Start: procStart = System.nanoTime() (before data generation)
+End: dbEnd = System.nanoTime() (after executeBatch() + commit())
+Time Range: Complete operation from data generation through DB commit
+total_time = processing_time + db_time
+```
+
+**Update Workload:**
+```
+Start: procStart = System.nanoTime() (before parameter setting)
+End: dbEnd = System.nanoTime() (after executeUpdate() + commit())
+Time Range: Complete operation from parameter setting through DB commit
+total_time = processing_time + db_time
+```
+
+**Select Retrieval:**
+```
+Start: procStart = System.nanoTime() (before parameter setting)
+End: t1 = System.nanoTime() (after executeQuery(), ResultSet ready)
+Time Range: Complete operation from parameter setting through query execution
+total_time = processing_time + db_time
+```
+
+**Select Processing:**
+```
+Start: procStart2 = System.nanoTime() (before row processing loop)
+End: procEnd2 = System.nanoTime() (after all rows processed)
+Time Range: Complete row conversion and processing
+total_time = processing_time (db_time = 0.0 for CPU-only operations)
+```
+
+**Delete/Extract/TxnMixed:**
+```
+Start: procStart = System.nanoTime() (before parameter setting/prep)
+End: dbEnd = System.nanoTime() (after SQL execution + commit if applicable)
+Time Range: Complete operation from prep through DB execution
+total_time = processing_time + db_time
+```
+
+#### Relationship to Other Metrics
+- **total_time** = **db_time** + **processing_time** (always)
+- **p50/p90/p99** represent percentiles of **total_time** (from main histogram)
+- **throughput** is calculated from **db_time** only (I/O performance)
 
 ---
 
@@ -401,12 +484,12 @@ new Histogram(3600000000000L, 3)
 
 ### Individual Workload CSV
 ```
-workload,operation,p50,p90,p99,throughput,db_time,processing_time
+workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time
 ```
 
 ### Summary CSV
 ```
-model,workload,operation,p50,p90,p99,throughput,db_time,processing_time
+model,workload,operation,p50,p90,p99,throughput,db_time,processing_time,total_time,total_time
 ```
 
 ### Example Row

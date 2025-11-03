@@ -41,7 +41,6 @@ public class ExtractWorkload implements Workload {
                     long t1 = System.nanoTime();
                     long dbTimeMs = (t1 - t0) / 1_000_000;
                     dbTimeHist.recordValue(dbTimeMs);
-                    hist.recordValue(dbTimeMs);
                     
                     // Processing: process results
                     long procStart2 = System.nanoTime();
@@ -52,6 +51,10 @@ public class ExtractWorkload implements Workload {
                     long procEnd2 = System.nanoTime();
                     long procTimeMs2 = (procEnd2 - procStart2) / 1_000_000;
                     procTimeHist.recordValue(procTimeMs2);
+                    
+                    // Record total_time (procStart -> procEnd2): includes prep + DB + result processing
+                    long totalTimeMs = (procEnd2 - procStart) / 1_000_000;
+                    hist.recordValue(totalTimeMs);
                 }
             }
         } catch (Exception ex) {

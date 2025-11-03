@@ -15,7 +15,7 @@ public class SelectWorkload implements Workload {
     private final Histogram histRetrieval;
     private final Histogram histProcessing;
     private final Histogram dbTimeHist;
-    private final Histogram procTimeHist;
+    private final Histogram procTimeHist; // For retrieval prep time (~0ms)
     
     private long workloadStartTime;
     private long workloadEndTime;
@@ -34,6 +34,8 @@ public class SelectWorkload implements Workload {
         this.histProcessing = hp;
         this.dbTimeHist = dbTimeHist;
         this.procTimeHist = procTimeHist;
+        // procTimeHist = prep time for retrieval (~0ms) - recorded at lines 60-64
+        // histProcessing = conversion time for processing - recorded at lines 123-129 (NOT to procTimeHist)
     }
 
     @Override
@@ -113,15 +115,15 @@ public class SelectWorkload implements Workload {
                             // Round to nearest millisecond, but ensure at least 1ms if > 0
                             long timeToRecord = avgProcTimeMs > 0 && avgProcTimeMs < 1.0 ? 1L : Math.round(avgProcTimeMs);
                             // Record this average time for each row processed
+                            // Only record to histProcessing (conversion time), NOT procTimeHist
+                            // procTimeHist is only for retrieval prep time (~0ms)
                             for (int i = 0; i < rowCount; i++) {
                                 histProcessing.recordValue(timeToRecord);
-                                procTimeHist.recordValue(timeToRecord);
                             }
                         } else if (totalProcTimeMs > 0) {
                             // If no rows but we have time, record at least one value
                             long timeToRecord = totalProcTimeMs > 0 && totalProcTimeMs < 1.0 ? 1L : Math.round(totalProcTimeMs);
                             histProcessing.recordValue(timeToRecord);
-                            procTimeHist.recordValue(timeToRecord);
                         }
                     }
                 }

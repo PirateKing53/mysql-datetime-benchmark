@@ -81,7 +81,10 @@ public class TxnMixedWorkload implements Workload {
                 }
                 
                 long totalEnd = System.nanoTime();
-                hist.recordValue((long)((totalEnd - totalStart) / 1_000_000.0));
+                double totalTimeMs = (totalEnd - totalStart) / 1_000_000.0;
+                // Round to nearest millisecond, but ensure at least 1ms if > 0
+                long timeToRecord = totalTimeMs > 0 && totalTimeMs < 1.0 ? 1L : Math.round(totalTimeMs);
+                hist.recordValue(timeToRecord);
             }
         } catch (Exception ex) {
             ex.printStackTrace();

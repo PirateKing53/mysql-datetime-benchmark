@@ -82,8 +82,10 @@ public class UpdateWorkload implements Workload {
                     // Always record to histogram
                     // Record total batch time (not divided) - represents the update operation latency
                     double totalTimeMs = (dbEnd - procStart) / 1_000_000.0;
+                    // Round to nearest millisecond, but ensure at least 1ms if > 0
+                    long timeToRecord = totalTimeMs > 0 && totalTimeMs < 1.0 ? 1L : Math.round(totalTimeMs);
                     // Record once per update operation (not per row, since UPDATE returns count)
-                    hist.recordValue((long)totalTimeMs);
+                    hist.recordValue(timeToRecord);
                     
                     if (updated[0] > 0) {
                         totalUpdated += updated[0];

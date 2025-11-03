@@ -77,7 +77,7 @@ public class Main {
         double insertElapsed = insertWorkload.getElapsedTimeSeconds();
         long insertCount = insertWorkload.getTotalInserted();
         ReportWriter.writeSummary("insert", "all", insertHist, model, 
-            insertDbTime.getMean(), insertProcTime.getMean(), insertElapsed, insertCount);
+            insertDbTime.getMean(), insertProcTime.getMean(), insertHist.getMean(), insertElapsed, insertCount, true);
         System.out.println("Insert done.");
 
         // Run updates
@@ -87,7 +87,7 @@ public class Main {
         double updateElapsed = updateWorkload.getElapsedTimeSeconds();
         long updateCount = updateWorkload.getTotalUpdated();
         ReportWriter.writeSummary("update", "cf3", updateHist, model,
-            updateDbTime.getMean(), updateProcTime.getMean(), updateElapsed, updateCount);
+            updateDbTime.getMean(), updateProcTime.getMean(), updateHist.getMean(), updateElapsed, updateCount, true);
 
         // Run selects (retrieval + processing)
         System.out.println("Running selects (retrieval + processing)...");
@@ -98,33 +98,38 @@ public class Main {
         
         // RETRIEVAL: DB I/O operation - calculate throughput from retrieval time
         // Throughput represents queries per second (DB I/O throughput)
+        // db_time: Actual DB query execution time
+        // processing_time: Prep time before query (~0ms, just parameter setting)
         long queryCount = Math.max(100, rows/batch);
         ReportWriter.writeSummary("select", "retrieval", selectRetr, model,
-            selectDbTime.getMean(), selectProcTime.getMean(), retrievalTimeSeconds, queryCount, true);
+            selectDbTime.getMean(), selectProcTime.getMean(), selectRetr.getMean(), retrievalTimeSeconds, queryCount, true);
         
         // PROCESSING: CPU-only conversion - do NOT calculate throughput (set to 0.0)
         // Processing is CPU-bound conversion loop, not I/O, so throughput is meaningless
         // We still track latency metrics (p50/p90/p99) to compare epoch vs bitpack conversion costs
+        // db_time: 0.0 (no database involved in CPU conversion)
+        // processing_time: Conversion time per row (datetime unpacking, from selectProc histogram mean)
+        // total_time: Same as processing_time (no DB component)
         ReportWriter.writeSummary("select", "processing", selectProc, model,
-            selectDbTime.getMean(), selectProcTime.getMean(), 0.0, 0, false);
+            0.0, selectProc.getMean(), selectProc.getMean(), 0.0, 0, false);
 
         // Extract/groupby
         System.out.println("Running extract/groupby...");
         pool.submit(new ExtractWorkload(ds, bitpack, extractHist, extractDbTime, extractProcTime)).get();
         ReportWriter.writeSummary("extract", "groupby", extractHist, model,
-            extractDbTime.getMean(), extractProcTime.getMean());
+            extractDbTime.getMean(), extractProcTime.getMean(), extractHist.getMean(), 0.0, 0, true);
 
         // Txn mixed
         System.out.println("Running txn-mixed workload...");
         pool.submit(new TxnMixedWorkload(ds, 200, bitpack, txnHist, txnDbTime, txnProcTime)).get();
         ReportWriter.writeSummary("txn_mixed", "all", txnHist, model,
-            txnDbTime.getMean(), txnProcTime.getMean());
+            txnDbTime.getMean(), txnProcTime.getMean(), txnHist.getMean(), 0.0, 0, true);
 
         // Deletes
         System.out.println("Running deletes...");
         pool.submit(new DeleteWorkload(ds, batch, bitpack, deleteHist, deleteDbTime, deleteProcTime)).get();
         ReportWriter.writeSummary("delete", "all", deleteHist, model,
-            deleteDbTime.getMean(), deleteProcTime.getMean());
+            deleteDbTime.getMean(), deleteProcTime.getMean(), deleteHist.getMean(), 0.0, 0, true);
 
         // Write final summary
         ReportWriter.writeFinalSummary(model);

@@ -56,7 +56,9 @@ public class DeleteWorkload implements Workload {
                     
                     long totalEnd = System.nanoTime();
                     double totalTimeMs = (totalEnd - procStart) / 1_000_000.0;
-                    hist.recordValue((long)(totalTimeMs));
+                    // Round to nearest millisecond, but ensure at least 1ms if > 0
+                    long timeToRecord = totalTimeMs > 0 && totalTimeMs < 1.0 ? 1L : Math.round(totalTimeMs);
+                    hist.recordValue(timeToRecord);
                     
                     if (cnt[0] == 0) break;
                     deleted += cnt[0];
